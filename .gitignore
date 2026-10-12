@@ -1,0 +1,41 @@
+# Android & Gradle
+*.iml
+.gradle
+**/.gradle/
+build/
+**/build/
+
+# Local configuration & environment (contains SDK paths and local keys)
+local.properties
+**/local.properties
+.env
+**/.env
+*.env.local
+
+# IDE & Editor files
+.idea/
+**/.idea/
+*.ipr
+*.iws
+.vscode/
+**/.vscode/
+
+# Keystores & Security
+*.jks
+*.keystore
+*.p12
+*.key
+*.pem
+*.pfx
+
+# Build outputs
+*.apk
+*.aab
+
+# OS & Cache
+.DS_Store
+Thumbs.db
+captures/
+**/captures/
+.externalNativeBuild/
+.cxx/
