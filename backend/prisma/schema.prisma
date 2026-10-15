@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String         @unique @db.VarChar(255)
+  passwordHash String         @map("password_hash") @db.Text
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  userSync     UserSync?
+  notes        Note[]
+  processedOps ProcessedOp[]
+  refreshTokens RefreshToken[]
+  wrappedKeys  WrappedKeys?
+  devices      Device[]
+
+  @@map("users")
+}
+
+model UserSync {
+  userId  String @id @map("user_id") @db.Uuid
+  lastSeq BigInt @default(0) @map("last_seq") @db.BigInt
+
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_sync")
+}
+
+model Note {
+  id         String   @id @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  ciphertext Bytes?
+  nonce      Bytes?
+  version    Int
+  deleted    Boolean  @default(false)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  serverSeq  BigInt   @map("server_seq") @db.BigInt
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, serverSeq])
+  @@index([userId, updatedAt])
+  @@map("notes")
+}
+
+model ProcessedOp {
+  opId          String   @id @map("op_id") @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  result        String   @db.VarChar(20)
+  serverVersion Int      @map("server_version")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("processed_ops")
+}
+
+model RefreshToken {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  tokenHash String   @map("token_hash") @db.Text
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  revoked   Boolean  @default(false)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model WrappedKeys {
+  userId            String   @id @map("user_id") @db.Uuid
+  passWrappedMk     Bytes    @map("pass_wrapped_mk")
+  passSalt          Bytes    @map("pass_salt")
+  kdfParams         Json     @map("kdf_params")
+  recoveryWrappedMk Bytes    @map("recovery_wrapped_mk")
+  keyVersion        Int      @default(1) @map("key_version")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("wrapped_keys")
+}
+
+model Device {
+  id       String   @id @db.Uuid
+  userId   String   @map("user_id") @db.Uuid
+  lastSeen DateTime @default(now()) @map("last_seen") @db.Timestamptz(6)
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("devices")
+}
