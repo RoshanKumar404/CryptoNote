@@ -37,7 +37,10 @@ data class NoteEntity(
     val deleted: Boolean = false,
 
     @ColumnInfo(name = "sync_status")
-    val syncStatus: String = "pending"
+    val syncStatus: String = "pending",
+
+    @ColumnInfo(name = "conflict_group_id")
+    val conflictGroupId: String? = null
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -52,6 +55,7 @@ data class NoteEntity(
         if (updatedAt != other.updatedAt) return false
         if (deleted != other.deleted) return false
         if (syncStatus != other.syncStatus) return false
+        if (conflictGroupId != other.conflictGroupId) return false
 
         return true
     }
@@ -64,6 +68,7 @@ data class NoteEntity(
         result = 31 * result + updatedAt.hashCode()
         result = 31 * result + deleted.hashCode()
         result = 31 * result + syncStatus.hashCode()
+        result = 31 * result + (conflictGroupId?.hashCode() ?: 0)
         return result
     }
 }
