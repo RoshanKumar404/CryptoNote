@@ -80,4 +80,16 @@ interface NoteDao {
      */
     @Query("SELECT COUNT(*) FROM notes WHERE sync_status = 'pending'")
     fun observePendingCount(): Flow<Int>
+
+    /**
+     * Get notes belonging to a specific conflict group.
+     */
+    @Query("SELECT * FROM notes WHERE conflict_group_id = :conflictGroupId AND deleted = 0")
+    suspend fun getNotesByConflictGroup(conflictGroupId: String): List<NoteEntity>
+
+    /**
+     * Clear conflict group association for a note.
+     */
+    @Query("UPDATE notes SET conflict_group_id = NULL WHERE id = :noteId")
+    suspend fun clearConflictGroup(noteId: String)
 }

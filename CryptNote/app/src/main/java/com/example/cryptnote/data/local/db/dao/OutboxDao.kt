@@ -20,20 +20,38 @@ interface OutboxDao {
      * Insert a new outbox entry (within the same transaction as the note mutation).
      */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertOutboxEntry(entry: OutboxEntity)
+    suspend fun insertOutboxEntry(entry: OutboxEntity): Long
 
     /**
-     * Get all pending outbox entries, ordered by creation time (FIFO).
+     * Update an existing outbox entry (e.g., during coalescing).
+     */
+    @Update
+    suspend fun updateOutboxEntry(entry: OutboxEntity)
+
+    /**
+     * Get all pending outbox entries, ordered by local sequence (FIFO).
      * @param limit Maximum number of entries to return per batch.
      */
-    @Query("SELECT * FROM outbox WHERE status = 'pending' ORDER BY created_at ASC LIMIT :limit")
+    @Query("SELECT * FROM outbox WHERE status = 'pending' ORDER BY seq ASC LIMIT :limit")
     suspend fun getPendingEntries(limit: Int = 50): List<OutboxEntity>
+
+    /**
+     * Get the latest unsent (pending) entry for a note to support outbox coalescing.
+     */
+    @Query("SELECT * FROM outbox WHERE note_id = :noteId AND status = 'pending' ORDER BY seq DESC LIMIT 1")
+    suspend fun getLatestPendingEntryForNote(noteId: String): OutboxEntity?
 
     /**
      * Mark an outbox entry as successfully sent.
      */
     @Query("UPDATE outbox SET status = 'sent' WHERE op_id = :opId")
     suspend fun markAsSent(opId: String)
+
+    /**
+     * Mark an outbox entry as conflicted.
+     */
+    @Query("UPDATE outbox SET status = 'conflict' WHERE op_id = :opId")
+    suspend fun markAsConflict(opId: String)
 
     /**
      * Mark an outbox entry as failed and increment the attempt counter.
@@ -48,6 +66,12 @@ interface OutboxDao {
      */
     @Query("UPDATE outbox SET status = 'pending' WHERE status = 'failed' AND attempts < :maxAttempts")
     suspend fun resetFailedEntries(maxAttempts: Int = 5)
+
+    /**
+     * Delete an outbox entry by its operation ID.
+     */
+    @Query("DELETE FROM outbox WHERE op_id = :opId")
+    suspend fun deleteEntryByOpId(opId: String)
 
     /**
      * Delete successfully sent entries that are older than the given timestamp.
