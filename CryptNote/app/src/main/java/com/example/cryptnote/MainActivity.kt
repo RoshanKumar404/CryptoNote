@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import com.example.cryptnote.ui.navigation.CryptoNoteNavGraph
 import com.example.cryptnote.ui.theme.CryptNoteTheme
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -21,12 +22,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             CryptNoteTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "CryptoNote",
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+                CryptoNoteNavGraph()
             }
         }
     }
