@@ -18,5 +18,6 @@ data class Note(
     val version: Int = 1,
     val updatedAt: Long = System.currentTimeMillis(),
     val deleted: Boolean = false,
-    val syncStatus: SyncStatus = SyncStatus.PENDING
+    val syncStatus: SyncStatus = SyncStatus.PENDING,
+    val conflictGroupId: String? = null
 )

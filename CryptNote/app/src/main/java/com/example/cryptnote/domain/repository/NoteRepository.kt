@@ -30,4 +30,9 @@ interface NoteRepository {
      * Soft-deletes a note by ID.
      */
     suspend fun deleteNote(id: String)
+
+    /**
+     * Observes notes involved in synchronization conflicts.
+     */
+    fun getConflictNotes(): Flow<List<Note>>
 }
