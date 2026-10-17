@@ -72,6 +72,7 @@ import java.util.Locale
 fun NotesListScreen(
     viewModel: NotesListViewModel,
     onNavigateToEditor: (noteId: String) -> Unit,
+    onLockVault: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -127,6 +128,13 @@ fun NotesListScreen(
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
+                    }
+                    IconButton(onClick = onLockVault) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "Lock Vault",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
