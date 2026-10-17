@@ -7,11 +7,14 @@ import com.example.cryptnote.data.local.db.dao.OutboxDao
 import com.example.cryptnote.data.local.db.entity.NoteEntity
 import com.example.cryptnote.data.local.db.entity.OutboxEntity
 import com.example.cryptnote.domain.model.Note
+import com.example.cryptnote.domain.model.NoteContent
 import com.example.cryptnote.domain.model.SyncStatus
 import com.example.cryptnote.domain.repository.NoteRepository
+import com.example.cryptnote.security.CryptoManager
+import com.example.cryptnote.security.KeySessionManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.json.JSONObject
+import kotlinx.serialization.json.Json
 import java.util.Base64
 import java.util.UUID
 import javax.inject.Inject
@@ -20,15 +23,16 @@ import javax.inject.Singleton
 /**
  * Implementation of [NoteRepository] backing storage with Room SQLite.
  *
- * Enforces atomic note mutations paired with transactional outbox queuing.
- * In FE-2 (dev mode before FE-3 encryption lands), notes are serialized as
- * canonical JSON payloads inside the ciphertext column.
+ * Enforces atomic note mutations paired with transactional outbox queuing,
+ * and transparent on-device AES-256-GCM encryption before writing ciphertext to SQLite.
  */
 @Singleton
 class RoomNoteRepository @Inject constructor(
     private val database: CryptNoteDatabase,
     private val noteDao: NoteDao,
-    private val outboxDao: OutboxDao
+    private val outboxDao: OutboxDao,
+    private val cryptoManager: CryptoManager,
+    private val keySessionManager: KeySessionManager
 ) : NoteRepository {
 
     override fun getAllNotes(): Flow<List<Note>> {
@@ -50,24 +54,30 @@ class RoomNoteRepository @Inject constructor(
     }
 
     override suspend fun saveNote(note: Note) {
+        val encryptionKey = keySessionManager.getEncryptionKey()
+
         database.withTransaction {
             val existing = noteDao.getNoteById(note.id)
             val baseVersion = existing?.version ?: 0
             val newVersion = baseVersion + 1
             val now = System.currentTimeMillis()
 
-            val jsonPayload = JSONObject().apply {
-                put("title", note.title)
-                put("body", note.body)
-            }.toString()
+            val jsonPayload = Json.encodeToString(
+                NoteContent.serializer(),
+                NoteContent(title = note.title, body = note.body)
+            )
 
-            val ciphertextBytes = jsonPayload.toByteArray(Charsets.UTF_8)
-            val nonceBytes = ByteArray(12) // Deterministic placeholder nonce for FE-2 dev mode
+            val encrypted = cryptoManager.encryptNote(
+                noteId = note.id,
+                version = newVersion,
+                plaintextJson = jsonPayload,
+                encryptionKey = encryptionKey
+            )
 
             val noteEntity = NoteEntity(
                 id = note.id,
-                ciphertext = ciphertextBytes,
-                nonce = nonceBytes,
+                ciphertext = encrypted.ciphertext,
+                nonce = encrypted.nonce,
                 version = newVersion,
                 updatedAt = now,
                 deleted = false,
@@ -77,7 +87,7 @@ class RoomNoteRepository @Inject constructor(
             noteDao.insertNote(noteEntity)
 
             val opType = if (existing == null) "create" else "update"
-            val payloadBase64 = Base64.getEncoder().encodeToString(ciphertextBytes)
+            val payloadBase64 = Base64.getEncoder().encodeToString(encrypted.ciphertext)
 
             // Outbox Coalescing check per SPEC-2:
             val latestPending = outboxDao.getLatestPendingEntryForNote(note.id)
@@ -134,12 +144,33 @@ class RoomNoteRepository @Inject constructor(
         var body = ""
 
         try {
-            val jsonString = String(this.ciphertext, Charsets.UTF_8)
-            val json = JSONObject(jsonString)
-            title = json.optString("title", "")
-            body = json.optString("body", "")
+            if (keySessionManager.isUnlocked.value) {
+                val encryptionKey = keySessionManager.getEncryptionKey()
+                val decryptedJson = cryptoManager.decryptNote(
+                    noteId = this.id,
+                    version = this.version,
+                    ciphertext = this.ciphertext,
+                    nonce = this.nonce,
+                    encryptionKey = encryptionKey
+                )
+                val content = Json.decodeFromString(NoteContent.serializer(), decryptedJson)
+                title = content.title
+                body = content.body
+            } else {
+                title = "🔒 Encrypted Note"
+                body = "Vault is locked. Unlock to decrypt."
+            }
         } catch (_: Exception) {
-            // Fallback for empty or corrupted payloads
+            // Fallback for dev-mode plaintext notes created before FE-3
+            try {
+                val jsonString = String(this.ciphertext, Charsets.UTF_8)
+                val content = Json.decodeFromString(NoteContent.serializer(), jsonString)
+                title = content.title
+                body = content.body
+            } catch (_: Exception) {
+                title = "⚠️ Decryption Error"
+                body = ""
+            }
         }
 
         val status = try {
