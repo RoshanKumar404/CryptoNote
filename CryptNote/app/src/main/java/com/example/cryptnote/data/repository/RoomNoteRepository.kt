@@ -58,9 +58,16 @@ class RoomNoteRepository @Inject constructor(
 
         database.withTransaction {
             val existing = noteDao.getNoteById(note.id)
-            val baseVersion = existing?.version ?: 0
-            val newVersion = baseVersion + 1
+            val latestPending = outboxDao.getLatestPendingEntryForNote(note.id)
             val now = System.currentTimeMillis()
+
+            val isUnsentCreate = latestPending != null && latestPending.type == "create"
+            val targetVersion = if (isUnsentCreate) {
+                1
+            } else {
+                (existing?.version ?: 0) + 1
+            }
+            val baseVersion = if (isUnsentCreate) 0 else (existing?.version ?: 0)
 
             val jsonPayload = Json.encodeToString(
                 NoteContent.serializer(),
@@ -69,7 +76,7 @@ class RoomNoteRepository @Inject constructor(
 
             val encrypted = cryptoManager.encryptNote(
                 noteId = note.id,
-                version = newVersion,
+                version = targetVersion,
                 plaintextJson = jsonPayload,
                 encryptionKey = encryptionKey
             )
@@ -78,7 +85,7 @@ class RoomNoteRepository @Inject constructor(
                 id = note.id,
                 ciphertext = encrypted.ciphertext,
                 nonce = encrypted.nonce,
-                version = newVersion,
+                version = targetVersion,
                 updatedAt = now,
                 deleted = false,
                 syncStatus = SyncStatus.PENDING.name.lowercase(),
@@ -86,28 +93,41 @@ class RoomNoteRepository @Inject constructor(
             )
             noteDao.insertNote(noteEntity)
 
-            val opType = if (existing == null) "create" else "update"
-            val payloadBase64 = Base64.getEncoder().encodeToString(encrypted.ciphertext)
+            val payloadJson = Json.encodeToString(
+                com.example.cryptnote.data.remote.model.OutboxPayloadDto.serializer(),
+                com.example.cryptnote.data.remote.model.OutboxPayloadDto(
+                    ciphertext = Base64.getEncoder().encodeToString(encrypted.ciphertext),
+                    nonce = Base64.getEncoder().encodeToString(encrypted.nonce)
+                )
+            )
 
-            // Outbox Coalescing check per SPEC-2:
-            val latestPending = outboxDao.getLatestPendingEntryForNote(note.id)
-            if (latestPending != null && latestPending.type == "update" && opType == "update") {
-                // Coalesce with existing pending update
+            // Outbox Coalescing rules per SPEC-2 Section 6:
+            if (isUnsentCreate) {
+                // Rule 2: Unsent create followed by updates coalesces into a single create (base_version = 0, version = 1)
                 outboxDao.updateOutboxEntry(
                     latestPending.copy(
-                        version = newVersion,
-                        payload = payloadBase64,
+                        payload = payloadJson,
+                        createdAt = now
+                    )
+                )
+            } else if (latestPending != null && latestPending.type == "update") {
+                // Rule 1: Consecutive unsent updates coalesce (keep first baseVersion, latest version, latest payload)
+                outboxDao.updateOutboxEntry(
+                    latestPending.copy(
+                        version = targetVersion,
+                        payload = payloadJson,
                         createdAt = now
                     )
                 )
             } else {
+                val opType = if (existing == null) "create" else "update"
                 val outboxEntity = OutboxEntity(
                     opId = UUID.randomUUID().toString(),
                     noteId = note.id,
                     type = opType,
                     baseVersion = baseVersion,
-                    version = newVersion,
-                    payload = payloadBase64,
+                    version = targetVersion,
+                    payload = payloadJson,
                     status = "pending",
                     createdAt = now
                 )
@@ -119,23 +139,41 @@ class RoomNoteRepository @Inject constructor(
     override suspend fun deleteNote(id: String) {
         database.withTransaction {
             val existing = noteDao.getNoteById(id) ?: return@withTransaction
+            val latestPending = outboxDao.getLatestPendingEntryForNote(id)
             val now = System.currentTimeMillis()
-            val baseVersion = existing.version
-            val newVersion = baseVersion + 1
 
-            noteDao.softDeleteNote(id, now)
-
-            val outboxEntity = OutboxEntity(
-                opId = UUID.randomUUID().toString(),
-                noteId = id,
-                type = "delete",
-                baseVersion = baseVersion,
-                version = newVersion,
-                payload = "",
-                status = "pending",
-                createdAt = now
-            )
-            outboxDao.insertOutboxEntry(outboxEntity)
+            if (latestPending != null && latestPending.type == "create") {
+                // Rule 3: Unsent create followed by delete cancels out completely (both deleted from notes and outbox)
+                noteDao.deleteNoteById(id)
+                outboxDao.deleteEntriesForNote(id)
+            } else if (latestPending != null && latestPending.type == "update") {
+                // Rule 4: Unsent update followed by delete coalesces into a single delete operation
+                val newVersion = latestPending.version
+                noteDao.softDeleteNote(id, now)
+                outboxDao.updateOutboxEntry(
+                    latestPending.copy(
+                        type = "delete",
+                        version = newVersion,
+                        payload = "",
+                        createdAt = now
+                    )
+                )
+            } else {
+                val baseVersion = existing.version
+                val newVersion = baseVersion + 1
+                noteDao.softDeleteNote(id, now)
+                val outboxEntity = OutboxEntity(
+                    opId = UUID.randomUUID().toString(),
+                    noteId = id,
+                    type = "delete",
+                    baseVersion = baseVersion,
+                    version = newVersion,
+                    payload = "",
+                    status = "pending",
+                    createdAt = now
+                )
+                outboxDao.insertOutboxEntry(outboxEntity)
+            }
         }
     }
 
