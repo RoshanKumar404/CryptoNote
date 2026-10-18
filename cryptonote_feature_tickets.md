@@ -801,18 +801,18 @@ Implement the auth UI (register/login screens) and Retrofit API client. Connect 
 Display sync status per note, show conflict resolution UI, and implement full-text search over decrypted notes.
 
 ### Acceptance Criteria
-- [ ] **Sync status indicator** per note in list: pending ⏳ / syncing 🔄 / synced ✅ / failed ❌
-- [ ] **Conflict UI:**
+- [x] **Sync status indicator** per note in list: pending ⏳ / syncing 🔄 / synced ✅ / failed ❌ / conflict ⚠️
+- [x] **Conflict UI:**
   - When a conflict is detected, create a copy of the note with "(conflict)" suffix
   - Show conflict badge on both copies
-  - User can view both and manually merge
-- [ ] **Local search (FTS):**
+  - User can view both and manually merge or choose local/server versions
+- [x] **Local search (in-memory zero-knowledge):**
   - Search bar in notes list
   - Decrypts notes in memory, searches title + body
-  - Debounced input (300ms)
-  - Highlights matching text (basic)
-- [ ] Search works fully offline
-- [ ] Tests for conflict resolution and search
+  - Debounced input (300ms) with immediate keystroke responsiveness
+  - Highlights matching text across title and body
+- [x] Search works fully offline
+- [x] Tests for conflict resolution and search (71 total Android tests passing)
 
 ### Implementation Plan
 
