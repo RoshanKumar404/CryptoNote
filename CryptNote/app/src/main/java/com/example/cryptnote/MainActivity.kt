@@ -4,42 +4,35 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import com.example.cryptnote.security.KeySessionManager
+import com.example.cryptnote.security.token.TokenStorageManager
 import com.example.cryptnote.ui.navigation.CryptoNoteNavGraph
+import com.example.cryptnote.ui.navigation.Screen
 import com.example.cryptnote.ui.theme.CryptNoteTheme
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var tokenStorageManager: TokenStorageManager
+
+    @Inject
+    lateinit var keySessionManager: KeySessionManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             CryptNoteTheme {
-                CryptoNoteNavGraph()
+                val startDestination = when {
+                    !tokenStorageManager.hasSession() -> Screen.Auth.route
+                    !keySessionManager.isUnlocked.value -> Screen.VaultAuth.route
+                    else -> Screen.NotesList.route
+                }
+                CryptoNoteNavGraph(startDestination = startDestination)
             }
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Welcome to $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    CryptNoteTheme {
-        Greeting("CryptoNote")
     }
 }

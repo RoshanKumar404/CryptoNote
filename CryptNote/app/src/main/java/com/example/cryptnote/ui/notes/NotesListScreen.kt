@@ -46,6 +46,7 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberSwipeToDismissBoxState
@@ -73,6 +74,7 @@ fun NotesListScreen(
     viewModel: NotesListViewModel,
     onNavigateToEditor: (noteId: String) -> Unit,
     onLockVault: () -> Unit = {},
+    onLogout: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -134,6 +136,15 @@ fun NotesListScreen(
                             imageVector = Icons.Default.Lock,
                             contentDescription = "Lock Vault",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    TextButton(onClick = {
+                        viewModel.logout()
+                        onLogout()
+                    }) {
+                        Text(
+                            text = "Sign Out",
+                            style = MaterialTheme.typography.labelLarge
                         )
                     }
                 },
