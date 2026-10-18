@@ -5,8 +5,10 @@ package com.example.cryptnote.domain.model
  */
 enum class SyncStatus(val value: String) {
     PENDING("pending"),
+    SYNCING("syncing"),
     SYNCED("synced"),
-    FAILED("failed");
+    FAILED("failed"),
+    CONFLICT("conflict");
 
     companion object {
         fun fromValue(value: String): SyncStatus {

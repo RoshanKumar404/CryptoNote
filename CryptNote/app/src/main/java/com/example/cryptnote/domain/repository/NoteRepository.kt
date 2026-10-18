@@ -35,4 +35,17 @@ interface NoteRepository {
      * Observes notes involved in synchronization conflicts.
      */
     fun getConflictNotes(): Flow<List<Note>>
+
+    /**
+     * Observes paired conflicting notes grouped by conflictGroupId.
+     */
+    fun getConflictPairs(): Flow<List<com.example.cryptnote.domain.model.ConflictPair>>
+
+    /**
+     * Resolves a synchronization conflict for notes identified by [conflictGroupId].
+     */
+    suspend fun resolveConflict(
+        conflictGroupId: String,
+        action: com.example.cryptnote.domain.model.ConflictResolutionAction
+    )
 }
