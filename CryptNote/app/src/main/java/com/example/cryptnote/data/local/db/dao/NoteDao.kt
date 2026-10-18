@@ -98,4 +98,10 @@ interface NoteDao {
      */
     @Query("SELECT * FROM notes WHERE conflict_group_id IS NOT NULL AND deleted = 0")
     fun observeConflictNotes(): Flow<List<NoteEntity>>
+
+    /**
+     * Hard-delete a note by ID (used when an unsent local draft is cancelled/deleted before push).
+     */
+    @Query("DELETE FROM notes WHERE id = :noteId")
+    suspend fun deleteNoteById(noteId: String)
 }

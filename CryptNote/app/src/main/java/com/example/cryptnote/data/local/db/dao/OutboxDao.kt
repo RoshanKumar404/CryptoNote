@@ -91,4 +91,17 @@ interface OutboxDao {
      */
     @Query("SELECT * FROM outbox WHERE op_id = :opId")
     suspend fun getEntryByOpId(opId: String): OutboxEntity?
+
+    /**
+     * Get IDs of notes that currently have a failed or conflict entry in the outbox.
+     * Used to prevent subsequent ops for a failed note from being dispatched out-of-order.
+     */
+    @Query("SELECT DISTINCT note_id FROM outbox WHERE status IN ('failed', 'conflict')")
+    suspend fun getBlockedNoteIds(): List<String>
+
+    /**
+     * Delete all outbox entries for a specific note (e.g., when a pending create is cancelled by a delete).
+     */
+    @Query("DELETE FROM outbox WHERE note_id = :noteId")
+    suspend fun deleteEntriesForNote(noteId: String)
 }
