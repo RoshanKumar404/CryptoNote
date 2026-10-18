@@ -293,21 +293,21 @@ fun VaultAuthScreen(
                 ),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Text(
-                        text = "🔒 Zero-Knowledge Pipeline",
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "• KDF: Argon2id (3 passes, 64 MB RAM, 1 lane)\n• HKDF-SHA256 split: Auth key + Encryption key\n• Cipher: AES-256-GCM with per-note random nonce & AAD\n• Master key wrapped with Android Keystore",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 18.sp
-                    )
-                }
+//                Column(modifier = Modifier.padding(14.dp)) {
+//                 Text(
+//                        text = " Zero-Knowledge Pipeline",
+//                        fontWeight = FontWeight.Bold,
+//                        style = MaterialTheme.typography.labelLarge,
+//                        color = MaterialTheme.colorScheme.primary
+//                    )
+//                    Spacer(modifier = Modifier.height(4.dp))
+//                    Text(
+//                        text = "• KDF: Argon2id (3 passes, 64 MB RAM, 1 lane)\n• HKDF-SHA256 split: Auth key + Encryption key\n• Cipher: AES-256-GCM with per-note random nonce & AAD\n• Master key wrapped with Android Keystore",
+//                        style = MaterialTheme.typography.bodySmall,
+//                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+//                        lineHeight = 18.sp
+//                    )
+//                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))

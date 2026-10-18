@@ -39,3 +39,4 @@ captures/
 **/captures/
 .externalNativeBuild/
 .cxx/
+docs/

@@ -233,7 +233,7 @@ Implement user registration, login, and JWT token refresh. Passwords hashed with
 Implement the core sync endpoints: batch push (create/update/delete operations) and cursor-based pull.
 
 ### Acceptance Criteria
-- [ ] `POST /sync/push` – accepts array of operations:
+- [x] `POST /sync/push` – accepts array of operations:
   ```json
   [{
     "op_id": "uuid",
@@ -244,8 +244,8 @@ Implement the core sync endpoints: batch push (create/update/delete operations) 
     "base_version": 0
   }]
   ```
-- [ ] Returns per-op result: `[{ op_id, result: "applied" | "conflict" | "duplicate", server_version }]`
-- [ ] `GET /sync/pull?since=<cursor>&limit=100` – returns:
+- [x] Returns per-op result: `[{ op_id, result: "applied" | "conflict" | "duplicate", server_version }]`
+- [x] `GET /sync/pull?since=<cursor>&limit=100` – returns:
   ```json
   {
     "changes": [{ "id", "ciphertext", "nonce", "version", "deleted", "updated_at", "server_seq" }],
@@ -253,14 +253,14 @@ Implement the core sync endpoints: batch push (create/update/delete operations) 
     "has_more": false
   }
   ```
-- [ ] All queries scoped by authenticated `user_id`
-- [ ] Push operations processed in order within a DB transaction
-- [ ] `create` → insert note with version=1
-- [ ] `update` → check `base_version` matches, increment version, update ciphertext/nonce
-- [ ] `delete` → set `deleted=true`, increment version
-- [ ] `server_seq` auto-incremented on every change
-- [ ] Max payload size enforced: 1 MB per note, 100 ops per push
-- [ ] Unit tests for: single create, batch push, pull with cursor, pull pagination
+- [x] All queries scoped by authenticated `user_id`
+- [x] Push operations processed in order within a DB transaction
+- [x] `create` → insert note with version=1
+- [x] `update` → check `base_version` matches, increment version, update ciphertext/nonce
+- [x] `delete` → set `deleted=true`, increment version
+- [x] `server_seq` auto-incremented on every change
+- [x] Max payload size enforced: 1 MB per note, 100 ops per push
+- [x] Unit tests for: single create, batch push, pull with cursor, pull pagination
 
 ### Implementation Plan
 
@@ -584,23 +584,23 @@ Build the notes list and editor screens with full offline CRUD. All operations w
 Implement the full encryption pipeline: passphrase → Argon2id → master key → HKDF split (auth key + encryption key) → per-note AES-256-GCM encryption. Keys protected by Android Keystore.
 
 ### Acceptance Criteria
-- [ ] **Passphrase setup flow:** First launch → set passphrase (min 8 chars)
-- [ ] **Key derivation:** Argon2id(passphrase, salt) → master key
-- [ ] **HKDF split:** master key → `auth_key` (for server login) + `encryption_key` (for notes)
-- [ ] **Per-note encryption:**
+- [x] **Passphrase setup flow:** First launch → set passphrase (min 8 chars)
+- [x] **Key derivation:** Argon2id(passphrase, salt) → master key
+- [x] **HKDF split:** master key → `auth_key` (for server login) + `encryption_key` (for notes)
+- [x] **Per-note encryption:**
   - AES-256-GCM with unique random nonce (12 bytes)
   - AAD = `note_id || version` (prevents ciphertext swapping)
   - Both title and body encrypted together as a JSON blob
-- [ ] **Key wrapping:** Master key wrapped by Android Keystore (AES key wrap)
-- [ ] Wrapped key stored in EncryptedSharedPreferences or DataStore
-- [ ] Sensitive byte arrays zeroed after use
-- [ ] **CryptoManager** interface:
+- [x] **Key wrapping:** Master key wrapped by Android Keystore (AES key wrap)
+- [x] **Wrapped key stored in EncryptedSharedPreferences or DataStore**
+- [x] **Sensitive byte arrays zeroed after use**
+- [x] **CryptoManager** interface:
   - `deriveKeys(passphrase, salt): KeyPair`
   - `encrypt(noteId, version, plaintext, encKey): EncryptedNote`
   - `decrypt(noteId, version, ciphertext, nonce, encKey): String`
-- [ ] Repository now encrypts before Room write, decrypts on read
-- [ ] Database dump shows only ciphertext (no plaintext anywhere)
-- [ ] Unit tests with known-answer test vectors
+- [x] **Repository now encrypts before Room write, decrypts on read**
+- [x] **Database dump shows only ciphertext (no plaintext anywhere)**
+- [x] **Unit tests with known-answer test vectors**
 
 ### Implementation Plan
 
@@ -666,9 +666,9 @@ Implement the full encryption pipeline: passphrase → Argon2id → master key �
 Implement the outbox pattern: every note write inserts both the note and an outbox entry in a single Room transaction. A WorkManager worker syncs the outbox when network is available.
 
 ### Acceptance Criteria
-- [ ] Every `save()` / `delete()` creates an `OutboxEntity` in the **same Room transaction** as the note change
-- [ ] Outbox entries are ordered by `createdAt`
-- [ ] `SyncWorker` extends `CoroutineWorker`:
+- [x] Every `save()` / `delete()` creates an `OutboxEntity` in the **same Room transaction** as the note change
+- [x] Outbox entries are ordered by `seq` (strictly monotonic FIFO queue)
+- [x] `SyncWorker` extends `CoroutineWorker`:
   - Runs with `NetworkType.CONNECTED` constraint
   - Pushes outbox entries in order (batched, max 50 per request)
   - On success: mark outbox entry as `sent`, update note `syncStatus = synced`
@@ -676,10 +676,10 @@ Implement the outbox pattern: every note write inserts both the note and an outb
   - After push: pull changes with `since=lastPullCursor`
   - Apply pulled changes to local DB (insert/update, respecting version)
   - Update `lastPullCursor`
-- [ ] `ConnectivityManager.NetworkCallback` triggers immediate sync on reconnect
-- [ ] No data loss on app kill mid-sync (WorkManager guarantees)
-- [ ] Survives process death and device reboot
-- [ ] Unit tests: outbox queuing, batch push, pull application
+- [x] `ConnectivityManager.NetworkCallback` triggers immediate sync on reconnect
+- [x] No data loss on app kill mid-sync (WorkManager guarantees)
+- [x] Survives process death and device reboot
+- [x] Unit tests: outbox queuing, batch push, pull application
 
 ### Implementation Plan
 
