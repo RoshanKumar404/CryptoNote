@@ -20,6 +20,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.serialization.json.Json
 import java.util.Base64
+import java.util.UUID
 
 /**
  * Background worker responsible for synchronizing local notes with the cloud server.
@@ -121,6 +122,11 @@ class SyncWorker @AssistedInject constructor(
                 )
             }
 
+            // Update notes to syncing state to trigger visual indicators
+            eligibleEntries.forEach { entry ->
+                noteDao.updateSyncStatus(entry.noteId, "syncing")
+            }
+
             val response = try {
                 syncApi.push(PushRequestDto(ops = pushOps))
             } catch (e: Exception) {
@@ -150,8 +156,25 @@ class SyncWorker @AssistedInject constructor(
                         }
                         "conflict" -> {
                             outboxDao.markAsConflict(entry.opId)
-                            noteDao.updateSyncStatus(entry.noteId, "conflict")
                             blockedNotes.add(entry.noteId)
+
+                            val existing = noteDao.getNoteById(entry.noteId)
+                            if (existing != null) {
+                                val conflictGroupId = existing.conflictGroupId ?: UUID.randomUUID().toString()
+                                // Tag the original note with conflict status and conflictGroupId
+                                noteDao.insertNote(existing.copy(conflictGroupId = conflictGroupId, syncStatus = "conflict"))
+
+                                // Fork local edits into a side-by-side conflict note so edits are preserved
+                                val forkId = UUID.randomUUID().toString()
+                                val forkEntity = existing.copy(
+                                    id = forkId,
+                                    conflictGroupId = conflictGroupId,
+                                    syncStatus = "conflict"
+                                )
+                                noteDao.insertNote(forkEntity)
+                            } else {
+                                noteDao.updateSyncStatus(entry.noteId, "conflict")
+                            }
                         }
                         else -> {
                             outboxDao.markAsFailed(entry.opId)
@@ -214,6 +237,10 @@ class SyncWorker @AssistedInject constructor(
                             try { Base64.getDecoder().decode(it) } catch (_: Exception) { ByteArray(0) }
                         } ?: ByteArray(0)
 
+                        val existing = noteDao.getNoteById(change.id)
+                        val conflictGroupId = existing?.conflictGroupId
+                        val syncStatus = if (conflictGroupId != null) "conflict" else "synced"
+
                         val noteEntity = NoteEntity(
                             id = change.id,
                             ciphertext = ciphertextBytes,
@@ -221,7 +248,8 @@ class SyncWorker @AssistedInject constructor(
                             version = change.version,
                             updatedAt = change.updatedAt,
                             deleted = false,
-                            syncStatus = "synced"
+                            syncStatus = syncStatus,
+                            conflictGroupId = conflictGroupId
                         )
                         noteDao.insertNote(noteEntity)
                     }

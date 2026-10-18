@@ -6,6 +6,8 @@ import com.example.cryptnote.data.local.db.dao.NoteDao
 import com.example.cryptnote.data.local.db.dao.OutboxDao
 import com.example.cryptnote.data.local.db.entity.NoteEntity
 import com.example.cryptnote.data.local.db.entity.OutboxEntity
+import com.example.cryptnote.domain.model.ConflictPair
+import com.example.cryptnote.domain.model.ConflictResolutionAction
 import com.example.cryptnote.domain.model.Note
 import com.example.cryptnote.domain.model.NoteContent
 import com.example.cryptnote.domain.model.SyncStatus
@@ -47,9 +49,88 @@ class RoomNoteRepository @Inject constructor(
         }
     }
 
+
     override fun getConflictNotes(): Flow<List<Note>> {
         return noteDao.observeConflictNotes().map { entities ->
             entities.map { it.toDomainModel() }
+        }
+    }
+
+    override fun getConflictPairs(): Flow<List<ConflictPair>> {
+        return noteDao.observeConflictNotes().map { entities ->
+            val domainNotes = entities.map { it.toDomainModel() }
+            domainNotes
+                .filter { it.conflictGroupId != null }
+                .groupBy { it.conflictGroupId!! }
+                .mapNotNull { (groupId, groupNotes) ->
+                    if (groupNotes.size >= 2) {
+                        val local = groupNotes.find { it.title.startsWith("(conflict)", ignoreCase = true) }
+                            ?: groupNotes.maxByOrNull { it.updatedAt } ?: groupNotes[0]
+                        val server = groupNotes.find { it.id != local.id } ?: groupNotes[1]
+                        ConflictPair(
+                            conflictGroupId = groupId,
+                            localNote = local,
+                            serverNote = server
+                        )
+                    } else null
+                }
+        }
+    }
+
+    override suspend fun resolveConflict(
+        conflictGroupId: String,
+        action: ConflictResolutionAction
+    ) {
+        database.withTransaction {
+            val entities = noteDao.getNotesByConflictGroup(conflictGroupId)
+            if (entities.isEmpty()) return@withTransaction
+
+            val domainNotes = entities.map { it.toDomainModel() }
+            val local = domainNotes.find { it.title.startsWith("(conflict)", ignoreCase = true) }
+                ?: domainNotes.maxByOrNull { it.updatedAt } ?: domainNotes[0]
+            val server = domainNotes.find { it.id != local.id } ?: domainNotes.getOrNull(1) ?: local
+
+            val canonicalId = if (server.id != local.id) server.id else local.id
+            val forkId = if (server.id != local.id) local.id else null
+
+            when (action) {
+                is ConflictResolutionAction.KeepLocal -> {
+                    if (forkId != null) {
+                        noteDao.deleteNoteById(forkId)
+                        outboxDao.deleteEntriesForNote(forkId)
+                    }
+                    val cleanTitle = local.title.removePrefix("(conflict)").removePrefix("(Conflict)").trim()
+                    val updatedCanonical = local.copy(
+                        id = canonicalId,
+                        title = cleanTitle,
+                        conflictGroupId = null
+                    )
+                    saveNote(updatedCanonical)
+                    noteDao.clearConflictGroup(canonicalId)
+                }
+                is ConflictResolutionAction.KeepServer -> {
+                    if (forkId != null) {
+                        noteDao.deleteNoteById(forkId)
+                        outboxDao.deleteEntriesForNote(forkId)
+                    }
+                    noteDao.clearConflictGroup(canonicalId)
+                    noteDao.updateSyncStatus(canonicalId, SyncStatus.SYNCED.name.lowercase())
+                }
+                is ConflictResolutionAction.CustomMerge -> {
+                    if (forkId != null) {
+                        noteDao.deleteNoteById(forkId)
+                        outboxDao.deleteEntriesForNote(forkId)
+                    }
+                    val mergedNote = server.copy(
+                        id = canonicalId,
+                        title = action.mergedTitle,
+                        body = action.mergedBody,
+                        conflictGroupId = null
+                    )
+                    saveNote(mergedNote)
+                    noteDao.clearConflictGroup(canonicalId)
+                }
+            }
         }
     }
 
