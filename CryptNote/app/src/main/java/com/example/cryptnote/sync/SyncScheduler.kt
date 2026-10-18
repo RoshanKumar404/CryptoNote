@@ -16,20 +16,26 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Manages scheduling for [SyncWorker] tasks using AndroidX WorkManager.
- * Enforces NetworkType.CONNECTED constraints and exponential backoff with jitter.
+ * Interface defining contract for scheduling background and reactive sync jobs.
+ * Adheres to Dependency Inversion Principle (DIP).
+ */
+interface SyncScheduler {
+    fun schedulePeriodic()
+    fun scheduleImmediate()
+    fun cancelAll()
+}
+
+/**
+ * AndroidX WorkManager implementation of [SyncScheduler].
+ * Enforces NetworkType.CONNECTED constraints and exponential backoff.
  */
 @Singleton
-class SyncScheduler @Inject constructor(
+class WorkManagerSyncScheduler @Inject constructor(
     @ApplicationContext private val context: Context
-) {
+) : SyncScheduler {
     private val workManager by lazy { WorkManager.getInstance(context) }
 
-    /**
-     * Schedules periodic background synchronization every 15 minutes
-     * with network connectivity constraints.
-     */
-    fun schedulePeriodic() {
+    override fun schedulePeriodic() {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
@@ -50,11 +56,7 @@ class SyncScheduler @Inject constructor(
         )
     }
 
-    /**
-     * Triggers an immediate one-time sync task when network becomes available
-     * or when a high-priority user action occurs.
-     */
-    fun scheduleImmediate() {
+    override fun scheduleImmediate() {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
@@ -75,10 +77,7 @@ class SyncScheduler @Inject constructor(
         )
     }
 
-    /**
-     * Cancels all scheduled sync jobs (used on logout).
-     */
-    fun cancelAll() {
+    override fun cancelAll() {
         workManager.cancelUniqueWork(PERIODIC_SYNC_WORK_NAME)
         workManager.cancelUniqueWork(ONE_TIME_SYNC_WORK_NAME)
     }

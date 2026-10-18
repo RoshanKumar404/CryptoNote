@@ -1,0 +1,286 @@
+package com.example.cryptnote.data.repository
+
+import com.example.cryptnote.data.remote.api.AuthApi
+import com.example.cryptnote.data.remote.model.AuthErrorResponseDto
+import com.example.cryptnote.data.remote.model.LoginRequestDto
+import com.example.cryptnote.data.remote.model.RegisterRequestDto
+import com.example.cryptnote.security.KeySessionManager
+import com.example.cryptnote.security.KeyStorageManager
+import com.example.cryptnote.security.token.AuthEventBus
+import com.example.cryptnote.security.token.AuthSessionEvent
+import com.example.cryptnote.security.token.TokenStorageManager
+import com.example.cryptnote.sync.SyncScheduler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import retrofit2.Response
+import java.io.IOException
+import javax.inject.Inject
+import javax.inject.Singleton
+
+sealed interface AuthState {
+    data object Unauthenticated : AuthState
+    data object Loading : AuthState
+    data class Authenticated(val userId: String, val email: String) : AuthState
+}
+
+interface AuthRepository {
+    val authState: StateFlow<AuthState>
+    fun hasActiveSession(): Boolean
+    suspend fun register(email: String, passphrase: CharArray): Result<Unit>
+    suspend fun login(email: String, passphrase: CharArray): Result<Unit>
+    suspend fun logout()
+    suspend fun checkSession(): Result<Unit>
+}
+
+@Singleton
+class AuthRepositoryImpl @Inject constructor(
+    private val authApi: AuthApi,
+    private val tokenStorageManager: TokenStorageManager,
+    private val keySessionManager: KeySessionManager,
+    private val keyStorageManager: KeyStorageManager,
+    private val syncScheduler: SyncScheduler,
+    private val authEventBus: AuthEventBus,
+    private val json: Json
+) : AuthRepository {
+
+    private val _authState = MutableStateFlow<AuthState>(
+        if (tokenStorageManager.hasSession()) {
+            AuthState.Authenticated(
+                userId = tokenStorageManager.getUserId().orEmpty(),
+                email = tokenStorageManager.getUserEmail().orEmpty()
+            )
+        } else {
+            AuthState.Unauthenticated
+        }
+    )
+    override val authState: StateFlow<AuthState> = _authState.asStateFlow()
+
+    private val repositoryScope = CoroutineScope(Dispatchers.IO)
+
+    init {
+        // Listen to force logout events (e.g. from TokenAuthenticator when refresh fails)
+        repositoryScope.launch {
+            authEventBus.events.collect { event ->
+                when (event) {
+                    is AuthSessionEvent.ForceLogout -> {
+                        logout()
+                    }
+                }
+            }
+        }
+    }
+
+    override fun hasActiveSession(): Boolean {
+        return tokenStorageManager.hasSession()
+    }
+
+    override suspend fun register(email: String, passphrase: CharArray): Result<Unit> =
+        kotlinx.coroutines.withContext(Dispatchers.Default) {
+            val normalizedEmail = email.trim().lowercase()
+            _authState.value = AuthState.Loading
+
+            try {
+                // 1. Initialize local cryptographic vault with the master passphrase
+                val vaultSetupResult = keySessionManager.setupPassphrase(passphrase)
+                if (vaultSetupResult.isFailure) {
+                    _authState.value = AuthState.Unauthenticated
+                    return@withContext Result.failure(
+                        vaultSetupResult.exceptionOrNull()
+                            ?: IllegalStateException("Failed to initialize vault")
+                    )
+                }
+
+                // 2. Extract zero-knowledge auth_key derived via HKDF-SHA256 split
+                val authKeyBytes = keySessionManager.getAuthKey()
+                val authKeyHex = authKeyBytes.toHex()
+
+                // 3. Register user with backend using derived auth_key as password
+                val response = authApi.register(
+                    RegisterRequestDto(email = normalizedEmail, password = authKeyHex)
+                )
+
+                if (response.isSuccessful && response.body() != null) {
+                    val body = response.body()!!
+                    tokenStorageManager.saveSession(
+                        accessToken = body.accessToken,
+                        refreshToken = body.refreshToken,
+                        userId = body.user.id,
+                        email = body.user.email
+                    )
+
+                    _authState.value = AuthState.Authenticated(
+                        userId = body.user.id,
+                        email = body.user.email
+                    )
+
+                    // Trigger immediate initial synchronization
+                    syncScheduler.scheduleImmediate()
+
+                    Result.success(Unit)
+                } else {
+                    // Registration failed on server; clean up local vault to avoid dangling state
+                    keyStorageManager.clear()
+                    keySessionManager.lock()
+                    _authState.value = AuthState.Unauthenticated
+                    Result.failure(extractErrorMessage(response))
+                }
+            } catch (e: Exception) {
+                keyStorageManager.clear()
+                keySessionManager.lock()
+                _authState.value = AuthState.Unauthenticated
+                Result.failure(mapException(e))
+            }
+        }
+
+    override suspend fun login(email: String, passphrase: CharArray): Result<Unit> =
+        kotlinx.coroutines.withContext(Dispatchers.Default) {
+            val normalizedEmail = email.trim().lowercase()
+            _authState.value = AuthState.Loading
+
+            val isExistingVault = keySessionManager.isSetup
+
+            try {
+                if (isExistingVault) {
+                    // Unlock existing local vault
+                    val unlockResult = keySessionManager.unlock(passphrase)
+                    if (unlockResult.isFailure) {
+                        _authState.value = AuthState.Unauthenticated
+                        return@withContext Result.failure(
+                            unlockResult.exceptionOrNull()
+                                ?: IllegalArgumentException("Invalid master passphrase")
+                        )
+                    }
+                } else {
+                    // First login on this device; set up local vault with provided passphrase
+                    val setupResult = keySessionManager.setupPassphrase(passphrase)
+                    if (setupResult.isFailure) {
+                        _authState.value = AuthState.Unauthenticated
+                        return@withContext Result.failure(
+                            setupResult.exceptionOrNull()
+                                ?: IllegalStateException("Failed to setup local vault")
+                        )
+                    }
+                }
+
+                val authKeyBytes = keySessionManager.getAuthKey()
+                val authKeyHex = authKeyBytes.toHex()
+
+                val response = authApi.login(
+                    LoginRequestDto(email = normalizedEmail, password = authKeyHex)
+                )
+
+                if (response.isSuccessful && response.body() != null) {
+                    val body = response.body()!!
+                    tokenStorageManager.saveSession(
+                        accessToken = body.accessToken,
+                        refreshToken = body.refreshToken,
+                        userId = body.user.id,
+                        email = body.user.email
+                    )
+
+                    _authState.value = AuthState.Authenticated(
+                        userId = body.user.id,
+                        email = body.user.email
+                    )
+
+                    // Trigger immediate initial synchronization
+                    syncScheduler.scheduleImmediate()
+
+                    Result.success(Unit)
+                } else {
+                    if (!isExistingVault) {
+                        keyStorageManager.clear()
+                        keySessionManager.lock()
+                    }
+                    _authState.value = AuthState.Unauthenticated
+                    Result.failure(extractErrorMessage(response))
+                }
+            } catch (e: Exception) {
+                if (!isExistingVault) {
+                    keyStorageManager.clear()
+                    keySessionManager.lock()
+                }
+                _authState.value = AuthState.Unauthenticated
+                Result.failure(mapException(e))
+            }
+        }
+
+    override suspend fun logout() {
+        tokenStorageManager.clearSession()
+        keySessionManager.lock()
+        syncScheduler.cancelAll()
+        _authState.value = AuthState.Unauthenticated
+    }
+
+    override suspend fun checkSession(): Result<Unit> {
+        if (!tokenStorageManager.hasSession()) {
+            _authState.value = AuthState.Unauthenticated
+            return Result.failure(IllegalStateException("No active session"))
+        }
+
+        return try {
+            val response = authApi.getMe()
+            if (response.isSuccessful && response.body() != null) {
+                val user = response.body()!!.user
+                tokenStorageManager.saveSession(
+                    accessToken = tokenStorageManager.getAccessToken().orEmpty(),
+                    refreshToken = tokenStorageManager.getRefreshToken().orEmpty(),
+                    userId = user.id,
+                    email = user.email
+                )
+                _authState.value = AuthState.Authenticated(user.id, user.email)
+                Result.success(Unit)
+            } else {
+                logout()
+                Result.failure(extractErrorMessage(response))
+            }
+        } catch (e: Exception) {
+            // If offline, maintain existing cached authenticated state
+            if (e is IOException) {
+                val userId = tokenStorageManager.getUserId().orEmpty()
+                val email = tokenStorageManager.getUserEmail().orEmpty()
+                _authState.value = AuthState.Authenticated(userId, email)
+                Result.success(Unit)
+            } else {
+                logout()
+                Result.failure(mapException(e))
+            }
+        }
+    }
+
+    private fun extractErrorMessage(response: Response<*>): Exception {
+        val errorBody = response.errorBody()?.string()
+        val parsedMessage = if (!errorBody.isNullOrBlank()) {
+            try {
+                json.decodeFromString<AuthErrorResponseDto>(errorBody).message
+            } catch (_: Exception) {
+                null
+            }
+        } else null
+
+        val message = parsedMessage ?: when (response.code()) {
+            400 -> "Validation failed. Please verify your input."
+            401 -> "Invalid email or master passphrase."
+            404 -> "Account not found."
+            409 -> "An account with this email address already exists."
+            429 -> "Too many requests. Please wait a moment and try again."
+            else -> "Server error (${response.code()}). Please try again later."
+        }
+        return IllegalArgumentException(message)
+    }
+
+    private fun mapException(e: Exception): Exception {
+        return if (e is IOException) {
+            IOException("Network connection unavailable. Please check your network and try again.", e)
+        } else {
+            e
+        }
+    }
+
+    private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
+}
