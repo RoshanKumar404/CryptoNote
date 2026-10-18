@@ -2,6 +2,8 @@
 *.iml
 .gradle
 **/.gradle/
+.kotlin/
+**/.kotlin/
 build/
 **/build/
 
