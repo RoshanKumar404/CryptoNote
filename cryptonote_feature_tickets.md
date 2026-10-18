@@ -735,20 +735,20 @@ Implement the outbox pattern: every note write inserts both the note and an outb
 Implement the auth UI (register/login screens) and Retrofit API client. Connect the sync worker to the real backend. Handle JWT refresh via OkHttp interceptor.
 
 ### Acceptance Criteria
-- [ ] **Register Screen:** Email + passphrase input → derives auth_key via HKDF → sends to backend
-- [ ] **Login Screen:** Same flow; stores tokens securely
-- [ ] **Retrofit API client** with endpoints:
+- [x] **Register Screen:** Email + passphrase input → derives auth_key via HKDF → sends to backend
+- [x] **Login Screen:** Same flow; stores tokens securely
+- [x] **Retrofit API client** with endpoints:
   - `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`
   - `POST /sync/push`, `GET /sync/pull`
-- [ ] **OkHttp interceptor** for JWT:
+- [x] **OkHttp interceptor** for JWT:
   - Attaches `Authorization: Bearer <accessToken>` to all API requests
   - On 401: refresh token → retry original request
   - On refresh failure: force logout
-- [ ] Tokens stored in **EncryptedSharedPreferences**
-- [ ] TLS certificate pinning configured
-- [ ] gzip compression enabled
-- [ ] Auth state managed as a `StateFlow<AuthState>` (LoggedOut / LoggedIn / Loading)
-- [ ] Tests for auth flow and token refresh interceptor
+- [x] Tokens stored in **EncryptedSharedPreferences**
+- [x] TLS certificate pinning configured
+- [x] gzip compression enabled
+- [x] Auth state managed as a `StateFlow<AuthState>` (LoggedOut / LoggedIn / Loading)
+- [x] Tests for auth flow and token refresh interceptor
 
 ### Implementation Plan
 

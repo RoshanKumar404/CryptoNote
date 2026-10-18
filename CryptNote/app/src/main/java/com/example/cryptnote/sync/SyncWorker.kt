@@ -39,10 +39,14 @@ class SyncWorker @AssistedInject constructor(
     private val outboxDao: OutboxDao,
     private val syncStateDao: SyncStateDao,
     private val syncApi: SyncApi,
+    private val tokenStorageManager: com.example.cryptnote.security.token.TokenStorageManager,
     private val json: Json
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
+        if (!tokenStorageManager.hasSession()) {
+            return Result.success()
+        }
         return try {
             // Step 1: Push pending mutations from the local outbox to the backend
             val pushSuccess = processOutbox()

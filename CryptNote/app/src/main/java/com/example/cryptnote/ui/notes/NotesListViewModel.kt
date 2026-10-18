@@ -29,8 +29,15 @@ sealed interface NotesListEvent {
 
 @HiltViewModel
 class NotesListViewModel @Inject constructor(
-    private val noteRepository: NoteRepository
+    private val noteRepository: NoteRepository,
+    private val authRepository: com.example.cryptnote.data.repository.AuthRepository
 ) : ViewModel() {
+
+    fun logout() {
+        viewModelScope.launch {
+            authRepository.logout()
+        }
+    }
 
     private val _searchQuery = MutableStateFlow("")
     private var lastDeletedNote: Note? = null
