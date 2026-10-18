@@ -28,7 +28,7 @@ object NetworkModule {
      * Paste your Render backend URL here once deployed (e.g., "https://cryptonote-backend.onrender.com/").
      * When blank, it automatically defaults to emulator loopback or adb reverse port forwarding for local testing.
      */
-    const val RENDER_BASE_URL: String = ""
+    const val RENDER_BASE_URL: String = "https://cryptonote-backend.onrender.com"
 
     fun getBaseUrl(): String {
         if (RENDER_BASE_URL.isNotBlank()) {
