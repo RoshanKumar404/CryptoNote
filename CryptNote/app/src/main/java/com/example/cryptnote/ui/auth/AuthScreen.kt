@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -77,102 +79,131 @@ fun AuthScreen(
     var showForgotDialog by remember { mutableStateOf(false) }
 
     if (showForgotDialog) {
-        var resetEmail by remember { mutableStateOf(uiState.email) }
-        var resetPassphrase by remember { mutableStateOf("") }
-        var isResetFormVisible by remember { mutableStateOf(false) }
+        var resetEmail by remember(showForgotDialog) { mutableStateOf(uiState.email) }
+        var resetPassphrase by remember(showForgotDialog) { mutableStateOf(uiState.passphrase) }
+        var resetConfirmPassphrase by remember(showForgotDialog) { mutableStateOf(uiState.passphrase) }
+        var isResetPassphraseVisible by remember { mutableStateOf(false) }
+
+        val isResetValid = resetEmail.isNotBlank() &&
+                resetPassphrase.length >= 8 &&
+                resetPassphrase == resetConfirmPassphrase
 
         AlertDialog(
             onDismissRequest = { showForgotDialog = false },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Default.Security,
+                        imageVector = Icons.Default.Lock,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (isResetFormVisible) "Reset Account" else "Zero-Knowledge Recovery",
+                        text = "Forgot Password / Reset",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                 }
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (!isResetFormVisible) {
-                        Text(
-                            text = "CryptoNote uses client-side Zero-Knowledge encryption. Your master passphrase is never stored on our servers, so it cannot be recovered or sent by email.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        ),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(
+                                text = "Zero-Knowledge Note:",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Your master password never leaves this device, so our servers cannot email you a password reset link. Setting a new password below resets your authentication key so you can sign in.",
+                                style = MaterialTheme.typography.bodySmall,
+                                lineHeight = 15.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = resetEmail,
+                        onValueChange = { resetEmail = it },
+                        label = { Text("Account Email") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Email,
+                            imeAction = ImeAction.Next
                         )
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                            ),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(
-                                    text = "Options to regain access:",
-                                    fontWeight = FontWeight.Bold,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "• Restore access with your 24-word recovery phrase if you generated one.\n• Or reset your account to set a new passphrase (existing encrypted server notes will be cleared for security).",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    lineHeight = 16.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = resetPassphrase,
+                        onValueChange = { resetPassphrase = it },
+                        label = { Text("New Password (8+ chars)") },
+                        singleLine = true,
+                        visualTransformation = if (isResetPassphraseVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { isResetPassphraseVisible = !isResetPassphraseVisible }) {
+                                Icon(
+                                    imageVector = if (isResetPassphraseVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = null
                                 )
                             }
-                        }
-                    } else {
+                        },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Next
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = resetConfirmPassphrase,
+                        onValueChange = { resetConfirmPassphrase = it },
+                        label = { Text("Confirm New Password") },
+                        singleLine = true,
+                        visualTransformation = if (isResetPassphraseVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        isError = resetConfirmPassphrase.isNotEmpty() && resetPassphrase != resetConfirmPassphrase,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Password,
+                            imeAction = ImeAction.Done
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (resetConfirmPassphrase.isNotEmpty() && resetPassphrase != resetConfirmPassphrase) {
                         Text(
-                            text = "Set a new master passphrase for your account. Inaccessible encrypted notes will be cleared so you can use your account freshly.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        OutlinedTextField(
-                            value = resetEmail,
-                            onValueChange = { resetEmail = it },
-                            label = { Text("Account Email") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = resetPassphrase,
-                            onValueChange = { resetPassphrase = it },
-                            label = { Text("New Master Passphrase (8+ chars)") },
-                            singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
-                            modifier = Modifier.fillMaxWidth()
+                            text = "Passwords do not match",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
                         )
                     }
                 }
             },
             confirmButton = {
-                if (!isResetFormVisible) {
-                    Button(onClick = { isResetFormVisible = true }) {
-                        Text("Reset Account & Passphrase")
-                    }
-                } else {
-                    Button(
-                        onClick = {
-                            viewModel.resetAccount(resetEmail, resetPassphrase)
-                            showForgotDialog = false
-                        },
-                        enabled = resetEmail.isNotBlank() && resetPassphrase.length >= 8
-                    ) {
-                        Text("Confirm Reset")
-                    }
+                Button(
+                    onClick = {
+                        viewModel.resetAccount(resetEmail, resetPassphrase)
+                        showForgotDialog = false
+                    },
+                    enabled = isResetValid
+                ) {
+                    Text("Reset & Sign In")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showForgotDialog = false }) {
-                    Text("Close")
+                    Text("Cancel")
                 }
             }
         )
@@ -261,22 +292,54 @@ fun AuthScreen(
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ErrorOutline,
-                            contentDescription = "Error",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = uiState.errorMessage.orEmpty(),
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodySmall
-                        )
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.ErrorOutline,
+                                contentDescription = "Error",
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = uiState.errorMessage.orEmpty(),
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        val isRecoverable = uiState.errorMessage?.contains("Invalid email", ignoreCase = true) == true ||
+                                uiState.errorMessage?.contains("already register", ignoreCase = true) == true
+
+                        if (isRecoverable) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Button(
+                                onClick = { showForgotDialog = true },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(38.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error
+                                ),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onError
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Forgot Password? Tap to Reset Account",
+                                    color = MaterialTheme.colorScheme.onError,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -356,13 +419,21 @@ fun AuthScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 2.dp),
-                    horizontalArrangement = Arrangement.End
+                        .padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     TextButton(onClick = { showForgotDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "Forgot Passphrase?",
-                            style = MaterialTheme.typography.bodySmall,
+                            text = "Forgot Password?",
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -472,6 +543,30 @@ fun AuthScreen(
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
                     )
+                }
+            }
+
+            if (uiState.selectedTab == AuthTab.REGISTER) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Already have an account?",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    TextButton(onClick = { showForgotDialog = true }) {
+                        Text(
+                            text = "Forgot Password / Reset",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
