@@ -45,11 +45,13 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -57,6 +59,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -191,6 +194,22 @@ fun NotesListScreen(
         )
     }
 
+    // Render Decryption Error Dialog if user tapped an unreadable note
+    uiState.selectedDecryptionErrorNote?.let { note ->
+        DecryptionErrorDialog(
+            note = note,
+            onDelete = {
+                viewModel.deleteNote(note)
+                viewModel.onDismissDecryptionErrorDialog()
+            },
+            onRefresh = {
+                viewModel.refreshNotes()
+                viewModel.onDismissDecryptionErrorDialog()
+            },
+            onDismiss = { viewModel.onDismissDecryptionErrorDialog() }
+        )
+    }
+
     // Render Sync Status Details Dialog if user tapped a note's sync indicator
     selectedSyncDetailNote?.let { note ->
         SyncStatusDetailDialog(
@@ -247,6 +266,27 @@ fun NotesListScreen(
                                     tint = MaterialTheme.colorScheme.error
                                 )
                             }
+                        }
+                    }
+
+                    // Sync / Refresh Button
+                    IconButton(
+                        onClick = { viewModel.refreshNotes() },
+                        enabled = !uiState.isRefreshing,
+                        modifier = Modifier.semantics { contentDescription = "Sync Notes with Cloud" }
+                    ) {
+                        if (uiState.isRefreshing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Sync Notes",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
                         }
                     }
 
@@ -325,7 +365,9 @@ fun NotesListScreen(
                         viewModel = viewModel,
                         selectedNoteId = tabletSelectedNoteId,
                         onNoteClick = { note ->
-                            if (note.conflictGroupId != null) {
+                            if (note.title.startsWith("⚠️ Decryption Error")) {
+                                viewModel.onDecryptionErrorNoteSelected(note)
+                            } else if (note.conflictGroupId != null) {
                                 viewModel.onConflictSelected(note.conflictGroupId)
                             } else {
                                 tabletSelectedNoteId = note.id
@@ -397,7 +439,9 @@ fun NotesListScreen(
                 viewModel = viewModel,
                 selectedNoteId = null,
                 onNoteClick = { note ->
-                    if (note.conflictGroupId != null) {
+                    if (note.title.startsWith("⚠️ Decryption Error")) {
+                        viewModel.onDecryptionErrorNoteSelected(note)
+                    } else if (note.conflictGroupId != null) {
                         viewModel.onConflictSelected(note.conflictGroupId)
                     } else {
                         onNavigateToEditor(note.id)
@@ -509,93 +553,99 @@ private fun NotesListContent(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        if (uiState.notes.isEmpty() && !uiState.isLoading) {
-            EmptyNotesView(
-                isSearchActive = uiState.searchQuery.isNotEmpty() || uiState.selectedTag != null,
-                onCreateNote = onCreateNewNote,
-                onClearFilter = {
-                    viewModel.onSearchQueryChanged("")
-                    viewModel.onTagSelected(null)
-                }
-            )
-        } else {
-            val pinnedNotes = remember(uiState.notes) { uiState.notes.filter { it.pinned } }
-            val otherNotes = remember(uiState.notes) { uiState.notes.filterNot { it.pinned } }
+        PullToRefreshBox(
+            isRefreshing = uiState.isRefreshing,
+            onRefresh = { viewModel.refreshNotes() },
+            modifier = Modifier.fillMaxSize()
+        ) {
+            if (uiState.notes.isEmpty() && !uiState.isLoading) {
+                EmptyNotesView(
+                    isSearchActive = uiState.searchQuery.isNotEmpty() || uiState.selectedTag != null,
+                    onCreateNote = onCreateNewNote,
+                    onClearFilter = {
+                        viewModel.onSearchQueryChanged("")
+                        viewModel.onTagSelected(null)
+                    }
+                )
+            } else {
+                val pinnedNotes = remember(uiState.notes) { uiState.notes.filter { it.pinned } }
+                val otherNotes = remember(uiState.notes) { uiState.notes.filterNot { it.pinned } }
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Pinned Section Header (if both pinned and regular notes exist)
-                if (pinnedNotes.isNotEmpty() && otherNotes.isNotEmpty()) {
-                    item(key = "header_pinned") {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.PushPin,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Pinned Section Header (if both pinned and regular notes exist)
+                    if (pinnedNotes.isNotEmpty() && otherNotes.isNotEmpty()) {
+                        item(key = "header_pinned") {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.PushPin,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "PINNED",
+                                    style = MaterialTheme.typography.labelMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.sp
+                                    ),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+
+                    items(
+                        items = pinnedNotes,
+                        key = { it.id }
+                    ) { note ->
+                        SwipeableNoteCard(
+                            note = note,
+                            searchQuery = uiState.searchQuery,
+                            isSelected = note.id == selectedNoteId,
+                            onClick = { onNoteClick(note) },
+                            onDelete = { viewModel.deleteNote(note) },
+                            onTogglePin = { viewModel.onTogglePin(note) },
+                            onSyncStatusClick = { onSyncStatusClick(note) }
+                        )
+                    }
+
+                    // Other Notes Header
+                    if (pinnedNotes.isNotEmpty() && otherNotes.isNotEmpty()) {
+                        item(key = "header_others") {
                             Text(
-                                text = "PINNED",
+                                text = "OTHER NOTES",
                                 style = MaterialTheme.typography.labelMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 1.sp
                                 ),
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
                             )
                         }
                     }
-                }
 
-                items(
-                    items = pinnedNotes,
-                    key = { it.id }
-                ) { note ->
-                    SwipeableNoteCard(
-                        note = note,
-                        searchQuery = uiState.searchQuery,
-                        isSelected = note.id == selectedNoteId,
-                        onClick = { onNoteClick(note) },
-                        onDelete = { viewModel.deleteNote(note) },
-                        onTogglePin = { viewModel.onTogglePin(note) },
-                        onSyncStatusClick = { onSyncStatusClick(note) }
-                    )
-                }
-
-                // Other Notes Header
-                if (pinnedNotes.isNotEmpty() && otherNotes.isNotEmpty()) {
-                    item(key = "header_others") {
-                        Text(
-                            text = "OTHER NOTES",
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            ),
-                            color = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+                    items(
+                        items = otherNotes,
+                        key = { it.id }
+                    ) { note ->
+                        SwipeableNoteCard(
+                            note = note,
+                            searchQuery = uiState.searchQuery,
+                            isSelected = note.id == selectedNoteId,
+                            onClick = { onNoteClick(note) },
+                            onDelete = { viewModel.deleteNote(note) },
+                            onTogglePin = { viewModel.onTogglePin(note) },
+                            onSyncStatusClick = { onSyncStatusClick(note) }
                         )
                     }
-                }
-
-                items(
-                    items = otherNotes,
-                    key = { it.id }
-                ) { note ->
-                    SwipeableNoteCard(
-                        note = note,
-                        searchQuery = uiState.searchQuery,
-                        isSelected = note.id == selectedNoteId,
-                        onClick = { onNoteClick(note) },
-                        onDelete = { viewModel.deleteNote(note) },
-                        onTogglePin = { viewModel.onTogglePin(note) },
-                        onSyncStatusClick = { onSyncStatusClick(note) }
-                    )
                 }
             }
         }
@@ -1084,6 +1134,65 @@ fun SyncStatusDetailDialog(
             if (note.syncStatus == SyncStatus.CONFLICT && onResolveConflict != null) {
                 TextButton(onClick = onDismiss) {
                     Text("Close")
+                }
+            }
+        }
+    )
+}
+
+@Composable
+fun DecryptionErrorDialog(
+    note: Note,
+    onDelete: () -> Unit,
+    onRefresh: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                imageVector = Icons.Default.Warning,
+                contentDescription = "Decryption Error",
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(36.dp)
+            )
+        },
+        title = {
+            Text(
+                text = "Unreadable Note",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "This note's encrypted ciphertext cannot be decrypted with your current vault key. It may have been created under a previous account or modified during synchronization.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "Note ID: ${note.id}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDelete,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Delete Note")
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onRefresh) {
+                    Text("Re-sync Cloud")
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
                 }
             }
         }

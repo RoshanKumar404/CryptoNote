@@ -27,13 +27,15 @@ import javax.inject.Inject
 
 data class NotesListUiState(
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val notes: List<Note> = emptyList(),
     val searchQuery: String = "",
     val selectedTag: String? = null,
     val availableTags: List<String> = emptyList(),
     val conflictCount: Int = 0,
     val conflictPairs: List<ConflictPair> = emptyList(),
-    val selectedConflictPair: ConflictPair? = null
+    val selectedConflictPair: ConflictPair? = null,
+    val selectedDecryptionErrorNote: Note? = null
 )
 
 sealed interface NotesListEvent {
@@ -47,7 +49,8 @@ class NotesListViewModel @Inject constructor(
     private val noteRepository: NoteRepository,
     private val authRepository: com.example.cryptnote.data.repository.AuthRepository,
     private val searchNotesUseCase: SearchNotesUseCase,
-    private val resolveConflictUseCase: ResolveConflictUseCase
+    private val resolveConflictUseCase: ResolveConflictUseCase,
+    private val syncScheduler: com.example.cryptnote.sync.SyncScheduler? = null
 ) : ViewModel() {
 
     private val _searchQuery = MutableStateFlow("")
@@ -57,6 +60,8 @@ class NotesListViewModel @Inject constructor(
     val selectedTag: StateFlow<String?> = _selectedTag.asStateFlow()
 
     private val _selectedConflictPair = MutableStateFlow<ConflictPair?>(null)
+    private val _selectedDecryptionErrorNote = MutableStateFlow<Note?>(null)
+    private val _isRefreshing = MutableStateFlow(false)
     private var lastDeletedNote: Note? = null
 
     private val _eventFlow = MutableSharedFlow<NotesListEvent>()
@@ -86,27 +91,50 @@ class NotesListViewModel @Inject constructor(
     }
 
     val uiState: StateFlow<NotesListUiState> = combine(
-        _filteredNotes,
-        _availableTags,
-        noteRepository.getConflictPairs(),
-        _searchQuery,
-        _selectedConflictPair
-    ) { filteredNotes, tags, conflictPairs, rawQuery, selectedPair ->
+        combine(_filteredNotes, _availableTags, _searchQuery) { notes, tags, query ->
+            Triple(notes, tags, query)
+        },
+        combine(noteRepository.getConflictPairs(), _selectedConflictPair) { pairs, selectedPair ->
+            Pair(pairs, selectedPair)
+        },
+        combine(_isRefreshing, _selectedDecryptionErrorNote) { isRef, decNote ->
+            Pair(isRef, decNote)
+        }
+    ) { (notes, tags, query), (conflictPairs, selectedPair), (isRef, decNote) ->
         NotesListUiState(
             isLoading = false,
-            notes = filteredNotes,
-            searchQuery = rawQuery,
+            isRefreshing = isRef,
+            notes = notes,
+            searchQuery = query,
             selectedTag = _selectedTag.value,
             availableTags = tags,
             conflictCount = conflictPairs.size,
             conflictPairs = conflictPairs,
-            selectedConflictPair = selectedPair
+            selectedConflictPair = selectedPair,
+            selectedDecryptionErrorNote = decNote
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = NotesListUiState(isLoading = true)
     )
+
+    fun refreshNotes() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            syncScheduler?.scheduleImmediate()
+            kotlinx.coroutines.delay(1200)
+            _isRefreshing.value = false
+        }
+    }
+
+    fun onDecryptionErrorNoteSelected(note: Note) {
+        _selectedDecryptionErrorNote.value = note
+    }
+
+    fun onDismissDecryptionErrorDialog() {
+        _selectedDecryptionErrorNote.value = null
+    }
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query

@@ -52,8 +52,8 @@ class NoteEditorViewModel @Inject constructor(
                 if (existing != null) {
                     _uiState.update {
                         it.copy(
-                            title = existing.title,
-                            body = existing.body,
+                            title = if (existing.title.startsWith("⚠️ Decryption Error")) "" else existing.title,
+                            body = if (existing.title.startsWith("⚠️ Decryption Error")) "" else existing.body,
                             tags = existing.tags,
                             isPinned = existing.pinned,
                             lastSavedAt = existing.updatedAt,

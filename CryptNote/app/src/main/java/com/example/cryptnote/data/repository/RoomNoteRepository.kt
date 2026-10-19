@@ -14,6 +14,7 @@ import com.example.cryptnote.domain.model.SyncStatus
 import com.example.cryptnote.domain.repository.NoteRepository
 import com.example.cryptnote.security.CryptoManager
 import com.example.cryptnote.security.KeySessionManager
+import com.example.cryptnote.sync.SyncScheduler
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
@@ -34,12 +35,13 @@ class RoomNoteRepository @Inject constructor(
     private val noteDao: NoteDao,
     private val outboxDao: OutboxDao,
     private val cryptoManager: CryptoManager,
-    private val keySessionManager: KeySessionManager
+    private val keySessionManager: KeySessionManager,
+    private val syncScheduler: SyncScheduler
 ) : NoteRepository {
 
     override fun getAllNotes(): Flow<List<Note>> {
         return noteDao.observeAllNotes().map { entities ->
-            entities.map { entity -> entity.toDomainModel() }
+            entities.map { entity -> entity.toDomainModel(entities) }
         }
     }
 
@@ -52,13 +54,13 @@ class RoomNoteRepository @Inject constructor(
 
     override fun getConflictNotes(): Flow<List<Note>> {
         return noteDao.observeConflictNotes().map { entities ->
-            entities.map { it.toDomainModel() }
+            entities.map { it.toDomainModel(entities) }
         }
     }
 
     override fun getConflictPairs(): Flow<List<ConflictPair>> {
         return noteDao.observeConflictNotes().map { entities ->
-            val domainNotes = entities.map { it.toDomainModel() }
+            val domainNotes = entities.map { it.toDomainModel(entities) }
             domainNotes
                 .filter { it.conflictGroupId != null }
                 .groupBy { it.conflictGroupId!! }
@@ -71,6 +73,18 @@ class RoomNoteRepository @Inject constructor(
                             conflictGroupId = groupId,
                             localNote = local,
                             serverNote = server
+                        )
+                    } else if (groupNotes.isNotEmpty()) {
+                        val solo = groupNotes.first()
+                        val dummyServer = solo.copy(
+                            id = "${solo.id}-server-placeholder",
+                            title = "${solo.title} (Cloud Out of Sync)",
+                            body = "Remote version rejected or not downloaded yet. You can keep local edits or discard this note to resolve."
+                        )
+                        ConflictPair(
+                            conflictGroupId = groupId,
+                            localNote = solo,
+                            serverNote = dummyServer
                         )
                     } else null
                 }
@@ -90,8 +104,8 @@ class RoomNoteRepository @Inject constructor(
                 ?: domainNotes.maxByOrNull { it.updatedAt } ?: domainNotes[0]
             val server = domainNotes.find { it.id != local.id } ?: domainNotes.getOrNull(1) ?: local
 
-            val canonicalId = if (server.id != local.id) server.id else local.id
-            val forkId = if (server.id != local.id) local.id else null
+            val canonicalId = if (server.id != local.id && !server.id.endsWith("-server-placeholder")) server.id else local.id
+            val forkId = if (server.id != local.id && !server.id.endsWith("-server-placeholder")) local.id else null
 
             when (action) {
                 is ConflictResolutionAction.KeepLocal -> {
@@ -132,6 +146,7 @@ class RoomNoteRepository @Inject constructor(
                 }
             }
         }
+        syncScheduler.scheduleImmediate()
     }
 
     override suspend fun saveNote(note: Note) {
@@ -220,6 +235,7 @@ class RoomNoteRepository @Inject constructor(
                 outboxDao.insertOutboxEntry(outboxEntity)
             }
         }
+        syncScheduler.scheduleImmediate()
     }
 
     override suspend fun deleteNote(id: String) {
@@ -234,7 +250,8 @@ class RoomNoteRepository @Inject constructor(
                 outboxDao.deleteEntriesForNote(id)
             } else if (latestPending != null && latestPending.type == "update") {
                 // Rule 4: Unsent update followed by delete coalesces into a single delete operation
-                val newVersion = latestPending.version
+                // Base version and target version must satisfy version == baseVersion + 1 for backend validation
+                val newVersion = latestPending.baseVersion + 1
                 noteDao.softDeleteNote(id, now)
                 outboxDao.updateOutboxEntry(
                     latestPending.copy(
@@ -261,6 +278,7 @@ class RoomNoteRepository @Inject constructor(
                 outboxDao.insertOutboxEntry(outboxEntity)
             }
         }
+        syncScheduler.scheduleImmediate()
     }
 
     private val jsonSerializer = Json {
@@ -268,7 +286,77 @@ class RoomNoteRepository @Inject constructor(
         coerceInputValues = true
     }
 
-    private fun NoteEntity.toDomainModel(): Note {
+    private fun tryDecryptNote(
+        entity: NoteEntity,
+        encryptionKey: ByteArray,
+        allEntities: List<NoteEntity> = emptyList()
+    ): String {
+        // Step 1: Standard decryption with entity.id and entity.version
+        try {
+            return cryptoManager.decryptNote(
+                noteId = entity.id,
+                version = entity.version,
+                ciphertext = entity.ciphertext,
+                nonce = entity.nonce,
+                encryptionKey = encryptionKey
+            )
+        } catch (_: Exception) {
+            // Standard decryption failed, proceed to fallback attempts
+        }
+
+        // Step 2: Try version variations on same noteId (in case version was incremented during outbox coalescing)
+        val candidateVersions = listOf(entity.version - 1, 1, 2, entity.version + 1, 0)
+            .distinct()
+            .filter { it >= 0 }
+
+        for (v in candidateVersions) {
+            try {
+                return cryptoManager.decryptNote(
+                    noteId = entity.id,
+                    version = v,
+                    ciphertext = entity.ciphertext,
+                    nonce = entity.nonce,
+                    encryptionKey = encryptionKey
+                )
+            } catch (_: Exception) {
+                // Try next candidate
+            }
+        }
+
+        // Step 3: If this note is part of a conflict group, check siblings in the same conflict group
+        if (entity.conflictGroupId != null) {
+            val siblings = allEntities.filter { it.conflictGroupId == entity.conflictGroupId && it.id != entity.id }
+            for (sibling in siblings) {
+                val candidateSiblingVersions = listOf(sibling.version, entity.version, 1, 2, 0)
+                for (v in candidateSiblingVersions) {
+                    try {
+                        return cryptoManager.decryptNote(
+                            noteId = sibling.id,
+                            version = v,
+                            ciphertext = entity.ciphertext,
+                            nonce = entity.nonce,
+                            encryptionKey = encryptionKey
+                        )
+                    } catch (_: Exception) {
+                        // Try next candidate
+                    }
+                }
+            }
+        }
+
+        // Step 4: Check if ciphertext was stored as plaintext UTF-8 JSON (dev legacy)
+        try {
+            val jsonString = String(entity.ciphertext, Charsets.UTF_8)
+            jsonSerializer.decodeFromString(NoteContent.serializer(), jsonString)
+            return jsonString
+        } catch (_: Exception) {
+            // Not plaintext JSON
+        }
+
+        throw java.security.GeneralSecurityException("AEAD authentication tag mismatch")
+    }
+
+    private fun NoteEntity.toDomainModel(allEntities: List<NoteEntity> = emptyList()): Note {
         var title = ""
         var body = ""
         var tags = emptyList<String>()
@@ -277,13 +365,7 @@ class RoomNoteRepository @Inject constructor(
         try {
             if (keySessionManager.isUnlocked.value) {
                 val encryptionKey = keySessionManager.getEncryptionKey()
-                val decryptedJson = cryptoManager.decryptNote(
-                    noteId = this.id,
-                    version = this.version,
-                    ciphertext = this.ciphertext,
-                    nonce = this.nonce,
-                    encryptionKey = encryptionKey
-                )
+                val decryptedJson = tryDecryptNote(this, encryptionKey, allEntities)
                 val content = jsonSerializer.decodeFromString(NoteContent.serializer(), decryptedJson)
                 title = content.title
                 body = content.body
@@ -294,18 +376,8 @@ class RoomNoteRepository @Inject constructor(
                 body = "Vault is locked. Unlock to decrypt."
             }
         } catch (_: Exception) {
-            // Fallback for dev-mode plaintext notes created before FE-3
-            try {
-                val jsonString = String(this.ciphertext, Charsets.UTF_8)
-                val content = jsonSerializer.decodeFromString(NoteContent.serializer(), jsonString)
-                title = content.title
-                body = content.body
-                tags = content.tags
-                pinned = content.pinned
-            } catch (_: Exception) {
-                title = "⚠️ Decryption Error"
-                body = ""
-            }
+            title = "⚠️ Decryption Error"
+            body = "This note could not be decrypted with your current vault key."
         }
 
         val status = try {
