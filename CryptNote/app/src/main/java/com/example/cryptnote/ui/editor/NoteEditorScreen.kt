@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -41,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
+import kotlinx.coroutines.launch
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NoteEditorScreen(
@@ -57,6 +60,17 @@ fun NoteEditorScreen(
 
     BackHandler {
         handleBack()
+    }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val snackbarHostState = androidx.compose.runtime.remember { androidx.compose.material3.SnackbarHostState() }
+    val clipboardManager = androidx.compose.runtime.remember {
+        try {
+            dagger.hilt.android.EntryPointAccessors.fromApplication(context.applicationContext, com.example.cryptnote.di.SecurityEntryPoint::class.java).clipboardAutoClearManager()
+        } catch (_: Exception) {
+            null
+        }
     }
 
     Scaffold(
@@ -80,6 +94,34 @@ fun NoteEditorScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = {
+                            val contentToCopy = listOf(uiState.title, uiState.body)
+                                .filter { it.isNotBlank() }
+                                .joinToString("\n\n")
+                            if (contentToCopy.isNotBlank()) {
+                                clipboardManager?.copyWithAutoClear(
+                                    label = "CryptoNote",
+                                    text = contentToCopy,
+                                    onCleared = {
+                                        coroutineScope.launch {
+                                            snackbarHostState.showSnackbar("Sensitive note auto-cleared from clipboard")
+                                        }
+                                    }
+                                )
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar("Copied to clipboard (auto-clears in 60s)")
+                                }
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "Copy Content",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
                     Icon(
                         imageVector = Icons.Default.Lock,
                         contentDescription = "Encrypted Note",
@@ -93,7 +135,8 @@ fun NoteEditorScreen(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
-        }
+        },
+        snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) }
     ) { innerPadding ->
         Column(
             modifier = Modifier

@@ -73,17 +73,19 @@ graph TD
 
 ## BE-1: Project Setup & Database Schema
 
-| Field | Value |
-|-------|-------|
-| **Priority** | P0 |
-| **Estimate** | 1–2 days |
-| **Depends On** | None |
-| **PRD Refs** | B4 (Data Model), B5 (Tech Stack) |
+| Field          | Value                            |
+| -------------- | -------------------------------- |
+| **Priority**   | P0                               |
+| **Estimate**   | 1–2 days                         |
+| **Depends On** | None                             |
+| **PRD Refs**   | B4 (Data Model), B5 (Tech Stack) |
 
 ### Description
+
 Bootstrap the Node.js backend project and set up the PostgreSQL database with all required tables.
 
 ### Acceptance Criteria
+
 - [ ] Project initialized with **TypeScript + Node.js**
 - [ ] **Fastify** (or Express) configured with project structure: `routes/`, `services/`, `middleware/`, `db/`, `utils/`
 - [ ] **Prisma** ORM configured with PostgreSQL connection
@@ -172,17 +174,19 @@ Bootstrap the Node.js backend project and set up the PostgreSQL database with al
 
 ## BE-2: Authentication (Register / Login / Refresh)
 
-| Field | Value |
-|-------|-------|
-| **Priority** | P0 |
-| **Estimate** | 2–3 days |
-| **Depends On** | BE-1 |
-| **PRD Refs** | B1, B2 (Functional), B6 (Security) |
+| Field          | Value                              |
+| -------------- | ---------------------------------- |
+| **Priority**   | P0                                 |
+| **Estimate**   | 2–3 days                           |
+| **Depends On** | BE-1                               |
+| **PRD Refs**   | B1, B2 (Functional), B6 (Security) |
 
 ### Description
+
 Implement user registration, login, and JWT token refresh. Passwords hashed with Argon2. Separate login secret from encryption passphrase (zero-knowledge).
 
 ### Acceptance Criteria
+
 - [ ] `POST /auth/register` – accepts `{ email, password }`, returns `{ userId, accessToken, refreshToken }`
 - [ ] `POST /auth/login` – validates credentials, returns JWT pair
 - [ ] `POST /auth/refresh` – accepts `{ refreshToken }`, returns new JWT pair
@@ -222,27 +226,31 @@ Implement user registration, login, and JWT token refresh. Passwords hashed with
 
 ## BE-3: Push/Pull Sync API
 
-| Field | Value |
-|-------|-------|
-| **Priority** | P0 |
-| **Estimate** | 3–4 days |
-| **Depends On** | BE-2 |
-| **PRD Refs** | B2, B3 (Push/Pull), B3 (API) |
+| Field          | Value                        |
+| -------------- | ---------------------------- |
+| **Priority**   | P0                           |
+| **Estimate**   | 3–4 days                     |
+| **Depends On** | BE-2                         |
+| **PRD Refs**   | B2, B3 (Push/Pull), B3 (API) |
 
 ### Description
+
 Implement the core sync endpoints: batch push (create/update/delete operations) and cursor-based pull.
 
 ### Acceptance Criteria
+
 - [x] `POST /sync/push` – accepts array of operations:
   ```json
-  [{
-    "op_id": "uuid",
-    "note_id": "uuid",
-    "type": "create | update | delete",
-    "ciphertext": "base64",
-    "nonce": "base64",
-    "base_version": 0
-  }]
+  [
+    {
+      "op_id": "uuid",
+      "note_id": "uuid",
+      "type": "create | update | delete",
+      "ciphertext": "base64",
+      "nonce": "base64",
+      "base_version": 0
+    }
+  ]
   ```
 - [x] Returns per-op result: `[{ op_id, result: "applied" | "conflict" | "duplicate", server_version }]`
 - [x] `GET /sync/pull?since=<cursor>&limit=100` – returns:
@@ -275,7 +283,7 @@ Implement the core sync endpoints: batch push (create/update/delete operations) 
        c. For update: SELECT note WHERE id AND user_id, check version match (→ conflict), update
        d. For delete: same version check, set deleted=true
        e. Return results array
-     - pull(userId, since, limit) → 
+     - pull(userId, since, limit) →
        SELECT notes WHERE user_id AND server_seq > since ORDER BY server_seq LIMIT limit+1
        → derive has_more, next_cursor
 3. Create routes:
@@ -290,17 +298,19 @@ Implement the core sync endpoints: batch push (create/update/delete operations) 
 
 ## BE-4: Idempotency & Conflict Detection
 
-| Field | Value |
-|-------|-------|
-| **Priority** | P0 |
-| **Estimate** | 2 days |
-| **Depends On** | BE-3 |
-| **PRD Refs** | B4, B5 (Functional), B8 (Acceptance) |
+| Field          | Value                                |
+| -------------- | ------------------------------------ |
+| **Priority**   | P0                                   |
+| **Estimate**   | 2 days                               |
+| **Depends On** | BE-3                                 |
+| **PRD Refs**   | B4, B5 (Functional), B8 (Acceptance) |
 
 ### Description
+
 Harden the push endpoint with robust idempotency (same op_id = same result) and optimistic-concurrency conflict detection via version checks.
 
 ### Acceptance Criteria
+
 - [ ] Same `op_id` pushed twice produces identical response, no data change
 - [ ] `base_version` mismatch returns `conflict` with current server version
 - [ ] Conflict response includes current `server_version` so client can resolve
@@ -333,17 +343,19 @@ Harden the push endpoint with robust idempotency (same op_id = same result) and 
 
 ## BE-5: Rate Limiting, Validation & Security Hardening
 
-| Field | Value |
-|-------|-------|
-| **Priority** | P1 |
-| **Estimate** | 1–2 days |
-| **Depends On** | BE-4 |
-| **PRD Refs** | B8 (Rate Limiting), B6 (Security) |
+| Field          | Value                             |
+| -------------- | --------------------------------- |
+| **Priority**   | P1                                |
+| **Estimate**   | 1–2 days                          |
+| **Depends On** | BE-4                              |
+| **PRD Refs**   | B8 (Rate Limiting), B6 (Security) |
 
 ### Description
+
 Add production-grade security hardening: rate limiting, input validation, helmet headers, payload logging prevention.
 
 ### Acceptance Criteria
+
 - [ ] Global rate limit: 100 req/min per IP
 - [ ] Auth endpoints: 5 req/min per IP
 - [ ] Sync endpoints: 30 req/min per user
@@ -372,17 +384,19 @@ Add production-grade security hardening: rate limiting, input validation, helmet
 
 ## BE-6: Device Management & Account Deletion
 
-| Field | Value |
-|-------|-------|
-| **Priority** | P1 |
-| **Estimate** | 1–2 days |
-| **Depends On** | BE-4 |
-| **PRD Refs** | B7, B9 (Functional) |
+| Field          | Value               |
+| -------------- | ------------------- |
+| **Priority**   | P1                  |
+| **Estimate**   | 1–2 days            |
+| **Depends On** | BE-4                |
+| **PRD Refs**   | B7, B9 (Functional) |
 
 ### Description
+
 Allow users to register devices and completely delete their account (GDPR-style wipe).
 
 ### Acceptance Criteria
+
 - [ ] `POST /devices/register` – register a device (id, push token optional)
 - [ ] `GET /devices` – list user's devices with last_seen
 - [ ] Device `last_seen` updated on every authenticated request (async, non-blocking)
@@ -414,17 +428,19 @@ Allow users to register devices and completely delete their account (GDPR-style 
 
 ## FE-1: Project Setup & Local Database
 
-| Field | Value |
-|-------|-------|
-| **Priority** | P0 |
-| **Estimate** | 1–2 days |
-| **Depends On** | None |
-| **PRD Refs** | A4 (Tech Stack), A5 (Data Model) |
+| Field          | Value                            |
+| -------------- | -------------------------------- |
+| **Priority**   | P0                               |
+| **Estimate**   | 1–2 days                         |
+| **Depends On** | None                             |
+| **PRD Refs**   | A4 (Tech Stack), A5 (Data Model) |
 
 ### Description
+
 Bootstrap the Android project with Jetpack Compose, Hilt DI, Room database, and the MVVM architecture.
 
 ### Acceptance Criteria
+
 - [ ] Android project created with **min SDK 26**, target SDK 34
 - [ ] **Jetpack Compose** configured with Material 3
 - [ ] **Hilt** dependency injection configured
@@ -511,17 +527,19 @@ Steps:
 
 ## FE-2: Notes CRUD + Offline-First UI
 
-| Field | Value |
-|-------|-------|
-| **Priority** | P0 |
-| **Estimate** | 3–4 days |
-| **Depends On** | FE-1 |
-| **PRD Refs** | F1, F2 (Functional), A7 (Non-Functional) |
+| Field          | Value                                    |
+| -------------- | ---------------------------------------- |
+| **Priority**   | P0                                       |
+| **Estimate**   | 3–4 days                                 |
+| **Depends On** | FE-1                                     |
+| **PRD Refs**   | F1, F2 (Functional), A7 (Non-Functional) |
 
 ### Description
+
 Build the notes list and editor screens with full offline CRUD. All operations write to the local Room database immediately — no network required. UI updates via Flow are instant (< 100ms target).
 
 ### Acceptance Criteria
+
 - [ ] **Notes List Screen:**
   - Displays all non-deleted notes (title preview + timestamp)
   - Pull-to-refresh gesture (triggers sync later)
@@ -545,7 +563,7 @@ Build the notes list and editor screens with full offline CRUD. All operations w
 ```
 1. Create domain models:
    - Note(id, title, body, updatedAt, deleted, syncStatus)
-   
+
 2. Create NoteRepository interface + RoomNoteRepository impl:
    - getAllNotes(): Flow<List<Note>>
    - getNoteById(id): Flow<Note?>
@@ -573,17 +591,19 @@ Build the notes list and editor screens with full offline CRUD. All operations w
 
 ## FE-3: Encryption & Key Management
 
-| Field | Value |
-|-------|-------|
-| **Priority** | P0 |
-| **Estimate** | 4–5 days |
-| **Depends On** | FE-2 |
-| **PRD Refs** | F3, F4 (Functional), A3 (Security), Skills: Cryptography |
+| Field          | Value                                                    |
+| -------------- | -------------------------------------------------------- |
+| **Priority**   | P0                                                       |
+| **Estimate**   | 4–5 days                                                 |
+| **Depends On** | FE-2                                                     |
+| **PRD Refs**   | F3, F4 (Functional), A3 (Security), Skills: Cryptography |
 
 ### Description
+
 Implement the full encryption pipeline: passphrase → Argon2id → master key → HKDF split (auth key + encryption key) → per-note AES-256-GCM encryption. Keys protected by Android Keystore.
 
 ### Acceptance Criteria
+
 - [x] **Passphrase setup flow:** First launch → set passphrase (min 8 chars)
 - [x] **Key derivation:** Argon2id(passphrase, salt) → master key
 - [x] **HKDF split:** master key → `auth_key` (for server login) + `encryption_key` (for notes)
@@ -615,13 +635,13 @@ Implement the full encryption pipeline: passphrase → Argon2id → master key �
      b. HKDF-SHA256(masterKey, info="auth") → authKey
      c. HKDF-SHA256(masterKey, info="encrypt") → encryptionKey
      d. Return KeyPair(authKey, encryptionKey)
-   
+
    - encrypt(noteId, version, plaintext, encKey):
      a. Generate 12-byte random nonce
      b. AAD = noteId.toByteArray() + version.toByteArray()
      c. AES-256-GCM encrypt with encKey, nonce, AAD
      d. Return EncryptedNote(ciphertext, nonce)
-   
+
    - decrypt(noteId, version, ciphertext, nonce, encKey):
      a. AAD = noteId.toByteArray() + version.toByteArray()
      b. AES-256-GCM decrypt
@@ -655,17 +675,19 @@ Implement the full encryption pipeline: passphrase → Argon2id → master key �
 
 ## FE-4: Outbox Queue + Sync Worker
 
-| Field | Value |
-|-------|-------|
-| **Priority** | P0 |
-| **Estimate** | 3–4 days |
-| **Depends On** | FE-3 |
-| **PRD Refs** | F5, F6 (Functional), A6 (Sync Behavior), Skills: Networking |
+| Field          | Value                                                       |
+| -------------- | ----------------------------------------------------------- |
+| **Priority**   | P0                                                          |
+| **Estimate**   | 3–4 days                                                    |
+| **Depends On** | FE-3                                                        |
+| **PRD Refs**   | F5, F6 (Functional), A6 (Sync Behavior), Skills: Networking |
 
 ### Description
+
 Implement the outbox pattern: every note write inserts both the note and an outbox entry in a single Room transaction. A WorkManager worker syncs the outbox when network is available.
 
 ### Acceptance Criteria
+
 - [x] Every `save()` / `delete()` creates an `OutboxEntity` in the **same Room transaction** as the note change
 - [x] Outbox entries are ordered by `seq` (strictly monotonic FIFO queue)
 - [x] `SyncWorker` extends `CoroutineWorker`:
@@ -724,17 +746,19 @@ Implement the outbox pattern: every note write inserts both the note and an outb
 
 ## FE-5: Auth + Backend Integration
 
-| Field | Value |
-|-------|-------|
-| **Priority** | P0 |
-| **Estimate** | 2–3 days |
-| **Depends On** | FE-4, BE-2, BE-3, BE-4 |
-| **PRD Refs** | A4 (Retrofit/OkHttp), Skills: Networking |
+| Field          | Value                                    |
+| -------------- | ---------------------------------------- |
+| **Priority**   | P0                                       |
+| **Estimate**   | 2–3 days                                 |
+| **Depends On** | FE-4, BE-2, BE-3, BE-4                   |
+| **PRD Refs**   | A4 (Retrofit/OkHttp), Skills: Networking |
 
 ### Description
+
 Implement the auth UI (register/login screens) and Retrofit API client. Connect the sync worker to the real backend. Handle JWT refresh via OkHttp interceptor.
 
 ### Acceptance Criteria
+
 - [x] **Register Screen:** Email + passphrase input → derives auth_key via HKDF → sends to backend
 - [x] **Login Screen:** Same flow; stores tokens securely
 - [x] **Retrofit API client** with endpoints:
@@ -790,18 +814,25 @@ Implement the auth UI (register/login screens) and Retrofit API client. Connect 
 
 ## FE-6: Sync Status, Conflict UI & Local Search
 
-| Field | Value |
-|-------|-------|
-| **Priority** | P1 |
-| **Estimate** | 2–3 days |
-| **Depends On** | FE-5 |
-| **PRD Refs** | F7, F8, F9 (Functional) |
+| Field          | Value                   |
+| -------------- | ----------------------- |
+| **Priority**   | P1                      |
+| **Estimate**   | 2–3 days                |
+| **Depends On** | FE-5                    |
+| **PRD Refs**   | F7, F8, F9 (Functional) |
 
 ### Description
+
 Display sync status per note, show conflict resolution UI, and implement full-text search over decrypted notes.
 
 ### Acceptance Criteria
+
 - [x] **Sync status indicator** per note in list: pending ⏳ / syncing 🔄 / synced ✅ / failed ❌ / conflict ⚠️
+- [x] **Interactive Sync Status Detail Dialog (`SyncStatusDetailDialog`):**
+  - Tapping any note's sync indicator displays an explanatory Material 3 popup
+  - Contextual explanations for `PENDING` (offline waiting for internet), `SYNCING` (TLS upload stream), `SYNCED` (identical backup), `CONFLICT` (collision resolution prompt), and `FAILED` (exponential backoff)
+  - Full metadata summary: Title, Status, Version (`v${version}`), Zero-Knowledge AES-256-GCM badge, and Last Saved timestamp
+  - Direct "Resolve Conflict" action button when inspecting conflicted notes
 - [x] **Conflict UI:**
   - When a conflict is detected, create a copy of the note with "(conflict)" suffix
   - Show conflict badge on both copies
@@ -818,59 +849,81 @@ Display sync status per note, show conflict resolution UI, and implement full-te
 
 ```
 1. Sync Status:
-   - Add SyncStatus enum: PENDING, SYNCING, SYNCED, FAILED
+   - Add SyncStatus enum: PENDING, SYNCING, SYNCED, FAILED, CONFLICT
    - Update NoteEntity to use enum
-   - Update NotesListScreen: show icon per status
-   - Animate status transitions
+   - Update NotesListScreen: interactive chip indicator with animated rotation and touch padding
+   - Add SyncStatusDetailDialog with state-specific messaging and metadata cards
 
 2. Conflict Handling:
    - In SyncWorker, on conflict response:
      a. Fetch server version via pull
      b. Create local copy: Note(id=newUUID, title="(conflict) $title", ...)
      c. Mark both notes with conflictGroupId
-   - Add ConflictBadge composable
-   - Add "Resolve Conflict" screen showing both versions side-by-side
+   - Add ConflictBadge composable & TopAppBar conflict indicator
+   - Add ConflictResolutionDialog with side-by-side view (Keep Local, Keep Server, Custom Merge)
 
 3. Local Search:
-   - Maintain in-memory cache of decrypted notes (refreshed on Flow emission)
-   - Search with String.contains() (case-insensitive) on title + body
-   - Expose searchNotes(query): Flow<List<Note>> from ViewModel
-   - Add SearchBar composable with debounce
-   - Show "No results" empty state
+   - Maintain in-memory cache of decrypted notes
+   - Zero-knowledge search over decrypted plaintext in RAM (preserves ciphertext-only disk)
+   - SearchNotesUseCase: substring match and relevance ranking (exact > prefix > title > body)
+   - TextHighlightUtils: Compose SpanStyle background highlight
+   - SearchBar composable with dual-flow debounce (instant text input + 300ms filter)
+   - Show "No matching notes" empty state
 ```
 
 ---
 
 ## FE-7: Passphrase/Biometric Lock & Security UX
 
-| Field | Value |
-|-------|-------|
-| **Priority** | P0 |
-| **Estimate** | 2–3 days |
-| **Depends On** | FE-5 |
-| **PRD Refs** | F3, F11 (Functional), A3 (Security), Skills: OS |
+| Field          | Value                                           |
+| -------------- | ----------------------------------------------- |
+| **Priority**   | P0                                              |
+| **Estimate**   | 2–3 days                                        |
+| **Depends On** | FE-5, FE-6                                      |
+| **PRD Refs**   | F3, F11 (Functional), A3 (Security), Skills: OS |
+| **Status**     | Completed                                       |
 
 ### Description
-Implement the app lock/unlock flow with passphrase and biometric authentication. Add security UX features like FLAG_SECURE and auto-lock.
+
+Implement hardware-backed biometric authentication (Fingerprint / Face Unlock) using AndroidX `BiometricPrompt`, anti-forensic `FLAG_SECURE` screen privacy, inactivity-based auto-lock with RAM zeroization, clipboard self-destruction after 60 seconds, and cloud backup exclusion.
 
 ### Acceptance Criteria
-- [ ] **Unlock screen** shown on app launch (passphrase input or biometric)
-- [ ] **BiometricPrompt** integration: fingerprint / face unlock
-  - Falls back to passphrase if biometric unavailable
-  - Biometric unlocks the Keystore-wrapped master key
-- [ ] **Auto-lock** after configurable inactivity (default 5 min)
-  - Zeros decryption key from memory on lock
-  - Re-requires unlock
-- [ ] **FLAG_SECURE** set on all note-related activities/fragments (blocks screenshots)
-- [ ] **Clipboard auto-clear** after 60 seconds when note content is copied
-- [ ] **Backup exclusion:** `android:allowBackup="false"`, `android:fullBackupContent="false"`
-- [ ] App excluded from recent apps screenshot (FLAG_SECURE handles this)
-- [ ] Tests for lock/unlock state machine
 
-### Implementation Plan
+- [x] **Biometric Authentication (`BiometricAuthManager` & `BiometricKeyManager`):**
+  - AndroidX `BiometricPrompt` integration with `BIOMETRIC_STRONG`
+  - Biometric capability detection (`checkBiometricSupport()` returns Available, NoneEnrolled, or Unsupported)
+  - Hardware-backed Android Keystore RSA-2048 OAEP key with `setUserAuthenticationRequired(true)` on private key to wrap/unwrap vault master key
+  - Fallback to master passphrase if biometrics are cancelled, unavailable, or fail
+- [x] **Unlock & Vault Auth UI Integration:**
+  - Quick-action biometric unlock prompt button on `VaultAuthScreen`
+  - Automatic biometric prompt on app resume/launch if enrolled
+  - Smooth animation transitions between passphrase input and biometric verification
+- [x] **Auto-Lock Engine (`InactivityLockManager`):**
+  - Configurable inactivity threshold (default: 3 minutes)
+  - Resets inactivity timer on user touch / screen interaction
+  - Backgrounding detection (`onStop`) triggers auto-lock
+  - Immediately wipes master key and encryption subkeys in RAM via `KeySessionManager.lock()`
+  - Routes UI to `VaultAuthScreen` upon lock
+- [x] **Anti-Forensic Screen Protection (`FLAG_SECURE`):**
+  - Set `WindowManager.LayoutParams.FLAG_SECURE` in `MainActivity`
+  - Completely blocks screenshots, screen recording, and casting
+  - Blanks/masks app preview thumbnail in Android recent tasks switcher
+- [x] **Clipboard Auto-Clear Guard (`ClipboardAutoClearManager`):**
+  - When user copies note text to clipboard from note editor, schedules a 60-second auto-clear timer
+  - Validates clipboard contents before wiping to avoid overwriting unrelated user copy actions
+  - Notifies user via snackbar when sensitive note clipboard content is sanitized
+- [x] **Backup & Extraction Exclusion:**
+  - `android:allowBackup="false"` in `AndroidManifest.xml`
+  - `data_extraction_rules.xml` and `backup_rules.xml` excluding databases, preferences, and files
+- [x] **Comprehensive Test Suite & Documentation:**
+  - Unit tests for `InactivityLockManager` (timeout, timer reset, backgrounding)
+  - Unit tests for `ClipboardAutoClearManager` (60s timer, clip matching, sanitization)
+  - Unit tests for `KeySessionManagerTest` (biometric setup, unlock, and disable)
+  - Architectural document: `docs/FrontEndDocs/FE-7_PASSPHRASE_BIOMETRIC_LOCK_SECURITY_UX.md` with cross-feature traceability
 
-```
-1. Create security/BiometricManager.kt:
+### Implementation
+
+ <!-- Create security/BiometricManager.kt:
    - canAuthenticate(): Boolean
    - authenticate(activity, onSuccess, onFailure)
    - Use BiometricPrompt with CryptoObject (Keystore-backed)
@@ -897,24 +950,61 @@ Implement the app lock/unlock flow with passphrase and biometric authentication.
 
 6. AndroidManifest:
    - android:allowBackup="false"
-   - android:fullBackupContent="false"
+   - android:fullBackupContent="false" -->
+
+```
+1. Biometric Infrastructure:
+   - Create security/biometric/BiometricAuthManager.kt:
+     - checkBiometricSupport(context): BiometricSupportState
+     - authenticate(activity, title, subtitle, onSuccess, onError, onFallback)
+   - Create security/biometric/BiometricKeyManager.kt:
+     - Generate Keystore AES-256 key requiring user authentication
+     - Encrypt/decrypt master key using BiometricPrompt.CryptoObject
+
+2. Auto-Lock & Lifecycle Guard:
+   - Create security/lock/InactivityLockManager.kt:
+     - observeUserInteraction(), onAppBackgrounded(), onAppForegrounded()
+     - StateFlow<Boolean> isLocked
+     - Coroutine-based delay(timeout) triggering keySessionManager.lock()
+   - Wire into MainActivity and CompositionLocal / lifecycle callbacks
+
+3. Anti-Forensic Window & Backup Flags:
+   - MainActivity: window.setFlags(FLAG_SECURE, FLAG_SECURE)
+   - Verify AndroidManifest: allowBackup="false"
+
+4. Clipboard Sanitizer:
+   - Create security/clipboard/ClipboardAutoClearManager.kt:
+     - copyAndScheduleClear(label, text, ttlMillis = 60_000L)
+     - Checks primaryClip text before clearing
+
+5. UI & ViewModels:
+   - Update VaultAuthViewModel to handle Biometric events and state
+   - Update VaultAuthScreen with Biometric prompt trigger and animations
+   - Add Lock Vault action in TopAppBar / Settings
+
+6. Verification & Documentation:
+   - Write unit tests in app/src/test/java/com/example/cryptnote/security/
+   - Write FE-7 documentation in docs/FrontEndDocs/FE-7_PASSPHRASE_BIOMETRIC_LOCK_SECURITY_UX.md
+   - Live validation on physical device (IZUO7H8LW4YDJJ7L)
 ```
 
 ---
 
 ## FE-8: UI Polish, Animations & Accessibility
 
-| Field | Value |
-|-------|-------|
-| **Priority** | P2 |
-| **Estimate** | 3–4 days |
-| **Depends On** | FE-6, FE-7 |
-| **PRD Refs** | F12 (Functional), Skills: UI |
+| Field          | Value                        |
+| -------------- | ---------------------------- |
+| **Priority**   | P2                           |
+| **Estimate**   | 3–4 days                     |
+| **Depends On** | FE-6, FE-7                   |
+| **PRD Refs**   | F12 (Functional), Skills: UI |
 
 ### Description
+
 Polish the UI with Material 3 design, animations, dark mode, markdown editor, and accessibility.
 
 ### Acceptance Criteria
+
 - [ ] **Material 3 dynamic theming** (light + dark mode toggle)
 - [ ] **Compose animations:**
   - Lock/unlock screen transition (fade + scale)
@@ -968,17 +1058,19 @@ Polish the UI with Material 3 design, animations, dark mode, markdown editor, an
 
 ## FE-9: Recovery Key & Threat Model
 
-| Field | Value |
-|-------|-------|
-| **Priority** | P1 |
-| **Estimate** | 1–2 days |
-| **Depends On** | FE-8 |
-| **PRD Refs** | F10 (Functional), Skills: Cryptography |
+| Field          | Value                                  |
+| -------------- | -------------------------------------- |
+| **Priority**   | P1                                     |
+| **Estimate**   | 1–2 days                               |
+| **Depends On** | FE-8                                   |
+| **PRD Refs**   | F10 (Functional), Skills: Cryptography |
 
 ### Description
+
 Implement recovery key export/import and create a threat model document.
 
 ### Acceptance Criteria
+
 - [ ] **Recovery key generation:** Display a 24-word mnemonic or base64 recovery key
 - [ ] **Export:** User can copy/save recovery key (shown once during setup, re-viewable from settings with passphrase re-entry)
 - [ ] **Import/Recovery:** Enter recovery key → derive master key → decrypt all notes
@@ -997,10 +1089,10 @@ Implement recovery key export/import and create a threat model document.
    - Encrypt master key with recovery key (AES-256-GCM)
    - Store encrypted master key blob
    - Display recovery key as base64 or BIP39 mnemonic words
-   
+
 2. Recovery flow:
    - Input recovery key → decrypt master key blob → re-wrap with new passphrase
-   
+
 3. UI:
    - RecoveryKeyScreen: display key with copy button
    - RecoveryImportScreen: input field for key
@@ -1015,24 +1107,24 @@ Implement recovery key export/import and create a threat model document.
 
 ## Summary: Recommended Build Order
 
-| Order | Ticket | Track | Est. Days |
-|-------|--------|-------|-----------|
-| 1 | **BE-1** Project Setup & DB | Backend | 1–2 |
-| 2 | **FE-1** Project Setup & Local DB | Frontend | 1–2 |
-| 3 | **BE-2** Auth | Backend | 2–3 |
-| 4 | **FE-2** Notes CRUD + Offline UI | Frontend | 3–4 |
-| 5 | **FE-3** Encryption & Key Mgmt | Frontend | 4–5 |
-| 6 | **BE-3** Push/Pull Sync API | Backend | 3–4 |
-| 7 | **BE-4** Idempotency & Conflicts | Backend | 2 |
-| 8 | **FE-4** Outbox + Sync Worker | Frontend | 3–4 |
-| 9 | **FE-5** Auth + Backend Integration | Frontend | 2–3 |
-| 10 | **BE-5** Security Hardening | Backend | 1–2 |
-| 11 | **BE-6** Devices & Account Deletion | Backend | 1–2 |
-| 12 | **FE-6** Sync Status, Conflicts & Search | Frontend | 2–3 |
-| 13 | **FE-7** Passphrase/Biometric Lock | Frontend | 2–3 |
-| 14 | **FE-8** UI Polish & Animations | Frontend | 3–4 |
-| 15 | **FE-9** Recovery Key & Threat Model | Frontend | 1–2 |
-| | **Total** | | **~30–40 days** |
+| Order | Ticket                                   | Track    | Est. Days       |
+| ----- | ---------------------------------------- | -------- | --------------- |
+| 1     | **BE-1** Project Setup & DB              | Backend  | 1–2             |
+| 2     | **FE-1** Project Setup & Local DB        | Frontend | 1–2             |
+| 3     | **BE-2** Auth                            | Backend  | 2–3             |
+| 4     | **FE-2** Notes CRUD + Offline UI         | Frontend | 3–4             |
+| 5     | **FE-3** Encryption & Key Mgmt           | Frontend | 4–5             |
+| 6     | **BE-3** Push/Pull Sync API              | Backend  | 3–4             |
+| 7     | **BE-4** Idempotency & Conflicts         | Backend  | 2               |
+| 8     | **FE-4** Outbox + Sync Worker            | Frontend | 3–4             |
+| 9     | **FE-5** Auth + Backend Integration      | Frontend | 2–3             |
+| 10    | **BE-5** Security Hardening              | Backend  | 1–2             |
+| 11    | **BE-6** Devices & Account Deletion      | Backend  | 1–2             |
+| 12    | **FE-6** Sync Status, Conflicts & Search | Frontend | 2–3             |
+| 13    | **FE-7** Passphrase/Biometric Lock       | Frontend | 2–3             |
+| 14    | **FE-8** UI Polish & Animations          | Frontend | 3–4             |
+| 15    | **FE-9** Recovery Key & Threat Model     | Frontend | 1–2             |
+|       | **Total**                                |          | **~30–40 days** |
 
 > [!TIP]
 > **Backend and Frontend tracks can be worked in parallel** after their respective setups (BE-1 and FE-1). The integration point is **FE-5**, where the frontend connects to the backend for the first time. Until then, frontend uses mock/local data only.

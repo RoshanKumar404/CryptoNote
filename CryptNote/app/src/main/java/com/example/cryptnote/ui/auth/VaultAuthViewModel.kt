@@ -3,6 +3,9 @@ package com.example.cryptnote.ui.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.cryptnote.security.KeySessionManager
+import com.example.cryptnote.security.biometric.BiometricAuthManager
+import com.example.cryptnote.security.biometric.BiometricKeyManager
+import com.example.cryptnote.security.biometric.BiometricStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,20 +23,30 @@ data class VaultAuthUiState(
     val confirmPassphraseInput: String = "",
     val isPassphraseVisible: Boolean = false,
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val isBiometricAvailable: Boolean = false,
+    val isBiometricEnabled: Boolean = false
 )
 
 sealed interface VaultAuthEvent {
     data object Authenticated : VaultAuthEvent
+    data class RequestBiometricAuth(val cipher: javax.crypto.Cipher) : VaultAuthEvent
+    data class ShowMessage(val message: String) : VaultAuthEvent
 }
 
 @HiltViewModel
 class VaultAuthViewModel @Inject constructor(
-    private val keySessionManager: KeySessionManager
+    private val keySessionManager: KeySessionManager,
+    private val biometricAuthManager: BiometricAuthManager,
+    private val biometricKeyManager: BiometricKeyManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
-        VaultAuthUiState(isSetup = keySessionManager.isSetup)
+        VaultAuthUiState(
+            isSetup = keySessionManager.isSetup,
+            isBiometricAvailable = biometricAuthManager.checkBiometricSupport() == BiometricStatus.AVAILABLE,
+            isBiometricEnabled = keySessionManager.canUnlockWithBiometric()
+        )
     )
     val uiState: StateFlow<VaultAuthUiState> = _uiState.asStateFlow()
 
@@ -46,7 +59,16 @@ class VaultAuthViewModel @Inject constructor(
 
     fun checkStatus() {
         val setup = keySessionManager.isSetup
-        _uiState.update { it.copy(isSetup = setup, errorMessage = null) }
+        val biometricAvail = biometricAuthManager.checkBiometricSupport() == BiometricStatus.AVAILABLE
+        val biometricEnabled = keySessionManager.canUnlockWithBiometric()
+        _uiState.update {
+            it.copy(
+                isSetup = setup,
+                isBiometricAvailable = biometricAvail,
+                isBiometricEnabled = biometricEnabled,
+                errorMessage = null
+            )
+        }
         if (keySessionManager.isUnlocked.value) {
             viewModelScope.launch {
                 _eventFlow.emit(VaultAuthEvent.Authenticated)
@@ -78,6 +100,62 @@ class VaultAuthViewModel @Inject constructor(
         }
     }
 
+    fun triggerBiometricUnlock() {
+        if (!keySessionManager.canUnlockWithBiometric()) {
+            _uiState.update {
+                it.copy(errorMessage = "Biometric unlock not enabled yet. Enter your master passphrase to unlock and activate biometrics.")
+            }
+            return
+        }
+        val iv = keySessionManager.getBiometricIv() ?: ByteArray(0)
+        try {
+            val decryptCipher = biometricKeyManager.createDecryptCipher(iv)
+            viewModelScope.launch {
+                _eventFlow.emit(VaultAuthEvent.RequestBiometricAuth(decryptCipher))
+            }
+        } catch (e: Exception) {
+            _uiState.update { it.copy(errorMessage = "Biometric cipher error: ${e.message}") }
+        }
+    }
+
+    fun onBiometricAuthSuccess(cipher: javax.crypto.Cipher) {
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        viewModelScope.launch {
+            val result = keySessionManager.unlockWithBiometric(cipher)
+            _uiState.update { it.copy(isLoading = false) }
+            result.fold(
+                onSuccess = {
+                    _eventFlow.emit(VaultAuthEvent.Authenticated)
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(errorMessage = error.message ?: "Failed to unlock vault with biometric")
+                    }
+                }
+            )
+        }
+    }
+
+    fun enableBiometricUnlock() {
+        try {
+            val encryptCipher = biometricKeyManager.createEncryptCipher()
+            val result = keySessionManager.setupBiometric(encryptCipher)
+            result.fold(
+                onSuccess = {
+                    _uiState.update { it.copy(isBiometricEnabled = true) }
+                    viewModelScope.launch {
+                        _eventFlow.emit(VaultAuthEvent.ShowMessage("Biometric unlock enabled"))
+                    }
+                },
+                onFailure = { error ->
+                    _uiState.update { it.copy(errorMessage = "Failed to enable biometric: ${error.message}") }
+                }
+            )
+        } catch (e: Exception) {
+            _uiState.update { it.copy(errorMessage = "Biometric setup error: ${e.message}") }
+        }
+    }
+
     fun submit() {
         val state = _uiState.value
         val passphrase = state.passphraseInput
@@ -99,6 +177,17 @@ class VaultAuthViewModel @Inject constructor(
                 _uiState.update { it.copy(isLoading = false) }
                 result.fold(
                     onSuccess = {
+                        if (biometricAuthManager.checkBiometricSupport() == BiometricStatus.AVAILABLE) {
+                            try {
+                                val encryptCipher = biometricKeyManager.createEncryptCipher()
+                                val setupResult = keySessionManager.setupBiometric(encryptCipher)
+                                if (setupResult.isSuccess) {
+                                    _uiState.update { it.copy(isBiometricEnabled = true) }
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("VaultAuthViewModel", "Biometric initial setup failed", e)
+                            }
+                        }
                         _eventFlow.emit(VaultAuthEvent.Authenticated)
                     },
                     onFailure = { error ->
@@ -115,6 +204,17 @@ class VaultAuthViewModel @Inject constructor(
                 _uiState.update { it.copy(isLoading = false) }
                 result.fold(
                     onSuccess = {
+                        if (biometricAuthManager.checkBiometricSupport() == BiometricStatus.AVAILABLE) {
+                            try {
+                                val encryptCipher = biometricKeyManager.createEncryptCipher()
+                                val setupResult = keySessionManager.setupBiometric(encryptCipher)
+                                if (setupResult.isSuccess) {
+                                    _uiState.update { it.copy(isBiometricEnabled = true) }
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("VaultAuthViewModel", "Biometric auto-enroll failed", e)
+                            }
+                        }
                         _eventFlow.emit(VaultAuthEvent.Authenticated)
                     },
                     onFailure = { error ->

@@ -27,7 +27,7 @@ object DatabaseModule {
             CryptNoteDatabase::class.java,
             CryptNoteDatabase.DATABASE_NAME
         )
-            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
     }
 

@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.example.cryptnote.security
 
 import android.content.Context
@@ -18,6 +20,12 @@ interface KeyStorageManager {
     fun getSalt(): ByteArray?
     fun getWrappedKey(): ByteArray?
     fun getWrapperIv(): ByteArray?
+    fun storeBiometricVault(wrappedKey: ByteArray, iv: ByteArray)
+    fun getBiometricWrappedKey(): ByteArray?
+    fun getBiometricIv(): ByteArray?
+    fun isBiometricEnabled(): Boolean
+    fun setBiometricEnabled(enabled: Boolean)
+    fun clearBiometric()
     fun clear()
 }
 
@@ -91,6 +99,50 @@ class KeyStorageManagerImpl @Inject constructor(
         }
     }
 
+    override fun storeBiometricVault(wrappedKey: ByteArray, iv: ByteArray) {
+        prefs.edit()
+            .putString(KEY_BIOMETRIC_WRAPPED_KEY, Base64.encodeToString(wrappedKey, Base64.NO_WRAP))
+            .putString(KEY_BIOMETRIC_IV, Base64.encodeToString(iv, Base64.NO_WRAP))
+            .putBoolean(KEY_BIOMETRIC_ENABLED, true)
+            .apply()
+    }
+
+    override fun getBiometricWrappedKey(): ByteArray? {
+        val encoded = prefs.getString(KEY_BIOMETRIC_WRAPPED_KEY, null) ?: return null
+        return try {
+            Base64.decode(encoded, Base64.NO_WRAP)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun getBiometricIv(): ByteArray? {
+        val encoded = prefs.getString(KEY_BIOMETRIC_IV, null) ?: return null
+        return try {
+            Base64.decode(encoded, Base64.NO_WRAP)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun isBiometricEnabled(): Boolean {
+        return prefs.getBoolean(KEY_BIOMETRIC_ENABLED, false) &&
+                getBiometricWrappedKey() != null &&
+                getBiometricIv() != null
+    }
+
+    override fun setBiometricEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_BIOMETRIC_ENABLED, enabled).apply()
+    }
+
+    override fun clearBiometric() {
+        prefs.edit()
+            .remove(KEY_BIOMETRIC_WRAPPED_KEY)
+            .remove(KEY_BIOMETRIC_IV)
+            .putBoolean(KEY_BIOMETRIC_ENABLED, false)
+            .apply()
+    }
+
     override fun clear() {
         prefs.edit().clear().apply()
     }
@@ -100,6 +152,9 @@ class KeyStorageManagerImpl @Inject constructor(
         private const val KEY_SALT = "vault_salt"
         private const val KEY_WRAPPED_KEY = "vault_wrapped_key"
         private const val KEY_WRAPPER_IV = "vault_wrapper_iv"
+        private const val KEY_BIOMETRIC_WRAPPED_KEY = "vault_biometric_wrapped_key"
+        private const val KEY_BIOMETRIC_IV = "vault_biometric_iv"
+        private const val KEY_BIOMETRIC_ENABLED = "vault_biometric_enabled"
     }
 }
 
@@ -110,6 +165,9 @@ class InMemoryKeyStorageManager : KeyStorageManager {
     private var salt: ByteArray? = null
     private var wrappedKey: ByteArray? = null
     private var iv: ByteArray? = null
+    private var biometricWrappedKey: ByteArray? = null
+    private var biometricIv: ByteArray? = null
+    private var biometricEnabled: Boolean = false
 
     override fun isSetup(): Boolean = salt != null && wrappedKey != null && iv != null
 
@@ -125,9 +183,32 @@ class InMemoryKeyStorageManager : KeyStorageManager {
 
     override fun getWrapperIv(): ByteArray? = iv?.copyOf()
 
+    override fun storeBiometricVault(wrappedKey: ByteArray, iv: ByteArray) {
+        this.biometricWrappedKey = wrappedKey.copyOf()
+        this.biometricIv = iv.copyOf()
+        this.biometricEnabled = true
+    }
+
+    override fun getBiometricWrappedKey(): ByteArray? = biometricWrappedKey?.copyOf()
+
+    override fun getBiometricIv(): ByteArray? = biometricIv?.copyOf()
+
+    override fun isBiometricEnabled(): Boolean = biometricEnabled && biometricWrappedKey != null && biometricIv != null
+
+    override fun setBiometricEnabled(enabled: Boolean) {
+        this.biometricEnabled = enabled
+    }
+
+    override fun clearBiometric() {
+        biometricWrappedKey = null
+        biometricIv = null
+        biometricEnabled = false
+    }
+
     override fun clear() {
         salt = null
         wrappedKey = null
         iv = null
+        clearBiometric()
     }
 }

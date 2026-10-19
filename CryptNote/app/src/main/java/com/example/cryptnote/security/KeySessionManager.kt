@@ -14,12 +14,19 @@ import javax.inject.Singleton
 interface KeySessionManager {
     val isUnlocked: StateFlow<Boolean>
     val isSetup: Boolean
+    val isBiometricEnabled: Boolean
 
     fun setupPassphrase(passphrase: CharArray): Result<Unit>
     fun unlock(passphrase: CharArray): Result<Unit>
     fun lock()
     fun getEncryptionKey(): ByteArray
     fun getAuthKey(): ByteArray
+
+    fun canUnlockWithBiometric(): Boolean
+    fun setupBiometric(cipher: javax.crypto.Cipher): Result<Unit>
+    fun unlockWithBiometric(cipher: javax.crypto.Cipher): Result<Unit>
+    fun disableBiometric()
+    fun getBiometricIv(): ByteArray?
 }
 
 @Singleton
@@ -143,6 +150,76 @@ class KeySessionManagerImpl @Inject constructor(
             throw IllegalStateException("Crypto vault is currently locked. Unlock with passphrase first.")
         }
         return key
+    }
+
+    override val isBiometricEnabled: Boolean
+        get() = keyStorageManager.isBiometricEnabled()
+
+    override fun canUnlockWithBiometric(): Boolean {
+        return keyStorageManager.isBiometricEnabled() &&
+                keyStorageManager.getBiometricWrappedKey() != null
+    }
+
+    override fun getBiometricIv(): ByteArray? {
+        return keyStorageManager.getBiometricIv() ?: ByteArray(0)
+    }
+
+    override fun disableBiometric() {
+        keyStorageManager.clearBiometric()
+    }
+
+    @Synchronized
+    override fun setupBiometric(cipher: javax.crypto.Cipher): Result<Unit> {
+        val wrappedKey = keyStorageManager.getWrappedKey()
+            ?: return Result.failure(IllegalStateException("Vault master key not found"))
+        val iv = keyStorageManager.getWrapperIv()
+            ?: return Result.failure(IllegalStateException("Wrapper IV not found"))
+
+        val masterKey = try {
+            keyWrapper.unwrapKey(wrappedKey, iv)
+        } catch (e: Exception) {
+            return Result.failure(IllegalStateException("Failed to unwrap master key for biometric: ${e.message}"))
+        }
+
+        try {
+            val biometricWrapped = cipher.doFinal(masterKey)
+            val cipherIv = cipher.iv ?: ByteArray(0)
+            keyStorageManager.storeBiometricVault(biometricWrapped, cipherIv)
+            return Result.success(Unit)
+        } catch (e: Exception) {
+            return Result.failure(e)
+        } finally {
+            masterKey.fill(0)
+        }
+    }
+
+    @Synchronized
+    override fun unlockWithBiometric(cipher: javax.crypto.Cipher): Result<Unit> {
+        val biometricWrapped = keyStorageManager.getBiometricWrappedKey()
+            ?: return Result.failure(IllegalStateException("Biometric vault data not found"))
+
+        val masterKey = try {
+            cipher.doFinal(biometricWrapped)
+        } catch (e: Exception) {
+            return Result.failure(IllegalArgumentException("Biometric decryption failed: ${e.message}"))
+        }
+
+        try {
+            val derived = cryptoManager.splitMasterKey(masterKey)
+
+            // Wipe prior active keys
+            lock()
+
+            activeEncryptionKey = derived.encryptionKey
+            activeAuthKey = derived.authKey
+            _isUnlocked.value = true
+
+            return Result.success(Unit)
+        } catch (e: Exception) {
+            return Result.failure(e)
+        } finally {
+            masterKey.fill(0)
+        }
     }
 
     companion object {

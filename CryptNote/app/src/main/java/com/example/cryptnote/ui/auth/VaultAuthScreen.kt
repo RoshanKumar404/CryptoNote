@@ -1,9 +1,11 @@
 package com.example.cryptnote.ui.auth
 
+import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Security
@@ -38,17 +41,22 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -57,7 +65,10 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.cryptnote.di.SecurityEntryPoint
+import dagger.hilt.android.EntryPointAccessors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,12 +78,55 @@ fun VaultAuthScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val activity = context as? FragmentActivity
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    val biometricAuthManager = remember {
+        try {
+            EntryPointAccessors.fromApplication(context.applicationContext, SecurityEntryPoint::class.java).biometricAuthManager()
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     LaunchedEffect(viewModel.eventFlow) {
         viewModel.eventFlow.collect { event ->
             when (event) {
                 is VaultAuthEvent.Authenticated -> onAuthenticated()
+                is VaultAuthEvent.RequestBiometricAuth -> {
+                    if (activity != null && biometricAuthManager != null) {
+                        biometricAuthManager.authenticate(
+                            activity = activity,
+                            title = "Unlock CryptoNote Vault",
+                            subtitle = "Use fingerprint or face recognition to unlock your encrypted notes",
+                            negativeButtonText = "Use Passphrase",
+                            cryptoObject = BiometricPrompt.CryptoObject(event.cipher),
+                            onSuccess = { result ->
+                                result.cryptoObject?.cipher?.let { authorizedCipher ->
+                                    viewModel.onBiometricAuthSuccess(authorizedCipher)
+                                }
+                            },
+                            onError = { _, _ ->
+                                // Silently fallback to passphrase entry
+                            },
+                            onFailed = {
+                                // Biometric attempt not recognized
+                            }
+                        )
+                    }
+                }
+                is VaultAuthEvent.ShowMessage -> {
+                    snackbarHostState.showSnackbar(event.message)
+                }
             }
+        }
+    }
+
+    // Auto-prompt biometric if enrolled and vault is initialized
+    LaunchedEffect(uiState.isSetup, uiState.isBiometricEnabled) {
+        if (uiState.isSetup && uiState.isBiometricEnabled) {
+            viewModel.triggerBiometricUnlock()
         }
     }
 
@@ -100,50 +154,50 @@ fun VaultAuthScreen(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
-        }
-    ) { paddingValues ->
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
+                .padding(innerPadding)
                 .padding(horizontal = 24.dp)
                 .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Vault Shield Graphic
+            // Vault Lock Icon Badge
             Box(
                 modifier = Modifier
                     .size(80.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = if (uiState.isSetup) Icons.Default.Lock else Icons.Default.Key,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(42.dp)
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(40.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
             Text(
-                text = if (uiState.isSetup) "Unlock Your Vault" else "Create Master Passphrase",
+                text = if (uiState.isSetup) "Unlock Your Vault" else "Setup Master Key",
                 style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
-                textAlign = TextAlign.Center
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
                 text = if (uiState.isSetup) {
-                    "Enter your master passphrase to decrypt your zero-knowledge notes."
+                    "Your master key never leaves your device. Enter your passphrase or verify biometric credentials to decrypt notes."
                 } else {
-                    "Choose a master passphrase (min 8 characters). Keys are derived with Argon2id + HKDF and wrapped in Android Keystore."
+                    "Create a master passphrase to secure your vault with zero-knowledge AES-256-GCM encryption. Do not lose it—it cannot be reset."
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -185,6 +239,94 @@ fun VaultAuthScreen(
                             )
                         }
                     }
+                }
+            }
+
+            // Biometric Option (Shown whenever device supports biometrics)
+            if (uiState.isSetup && uiState.isBiometricAvailable) {
+                if (uiState.isBiometricEnabled) {
+                    OutlinedButton(
+                        onClick = viewModel::triggerBiometricUnlock,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Fingerprint,
+                            contentDescription = "Unlock with Biometrics",
+                            modifier = Modifier.size(24.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Unlock with Biometrics",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.weight(1f).height(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
+                        Text(
+                            text = " OR USE PASSPHRASE ",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                        Box(modifier = Modifier.weight(1f).height(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                } else {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.triggerBiometricUnlock() },
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                        ),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Fingerprint,
+                                    contentDescription = "Biometrics Available",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Biometric Unlock Supported",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "Enter master passphrase below once to activate fingerprint unlock.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
 
@@ -284,33 +426,6 @@ fun VaultAuthScreen(
             }
 
             Spacer(modifier = Modifier.height(28.dp))
-
-            // Cryptographic Specs Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                ),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-//                Column(modifier = Modifier.padding(14.dp)) {
-//                 Text(
-//                        text = " Zero-Knowledge Pipeline",
-//                        fontWeight = FontWeight.Bold,
-//                        style = MaterialTheme.typography.labelLarge,
-//                        color = MaterialTheme.colorScheme.primary
-//                    )
-//                    Spacer(modifier = Modifier.height(4.dp))
-//                    Text(
-//                        text = "• KDF: Argon2id (3 passes, 64 MB RAM, 1 lane)\n• HKDF-SHA256 split: Auth key + Encryption key\n• Cipher: AES-256-GCM with per-note random nonce & AAD\n• Master key wrapped with Android Keystore",
-//                        style = MaterialTheme.typography.bodySmall,
-//                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-//                        lineHeight = 18.sp
-//                    )
-//                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

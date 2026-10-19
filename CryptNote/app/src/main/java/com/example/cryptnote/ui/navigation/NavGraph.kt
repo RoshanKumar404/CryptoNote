@@ -33,6 +33,28 @@ fun CryptoNoteNavGraph(
     navController: NavHostController = rememberNavController(),
     startDestination: String = Screen.Auth.route
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val lockManager = androidx.compose.runtime.remember {
+        try {
+            dagger.hilt.android.EntryPointAccessors.fromApplication(context.applicationContext, com.example.cryptnote.di.SecurityEntryPoint::class.java).inactivityLockManager()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(lockManager) {
+        lockManager?.isLocked?.collect { isLocked ->
+            if (isLocked) {
+                val currentRoute = navController.currentBackStackEntry?.destination?.route
+                if (currentRoute != null && currentRoute != Screen.Auth.route && currentRoute != Screen.VaultAuth.route) {
+                    navController.navigate(Screen.VaultAuth.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            }
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = startDestination,

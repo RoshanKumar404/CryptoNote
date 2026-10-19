@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.example.cryptnote.security.token
 
 import android.content.Context

@@ -101,4 +101,43 @@ class KeySessionManagerTest {
         val restoredEncKey = keySessionManager.getEncryptionKey()
         org.junit.Assert.assertArrayEquals(initialEncKey, restoredEncKey)
     }
+
+    @Test
+    fun biometric_setupAndUnlock_succeeds() {
+        val passphrase = "master-passphrase-biometric".toCharArray()
+        keySessionManager.setupPassphrase(passphrase)
+        val initialEncKey = keySessionManager.getEncryptionKey().copyOf()
+
+        val testBiometricSecretKey = javax.crypto.spec.SecretKeySpec(ByteArray(32) { 7 }, "AES")
+        val encryptCipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        encryptCipher.init(javax.crypto.Cipher.ENCRYPT_MODE, testBiometricSecretKey)
+
+        val setupResult = keySessionManager.setupBiometric(encryptCipher)
+        assertTrue(setupResult.isSuccess)
+        assertTrue(keySessionManager.isBiometricEnabled)
+        assertTrue(keySessionManager.canUnlockWithBiometric())
+
+        val iv = keySessionManager.getBiometricIv()
+        assertNotNull(iv)
+
+        // Lock vault
+        keySessionManager.lock()
+        assertFalse(keySessionManager.isUnlocked.value)
+
+        // Decrypt with authorized cipher
+        val decryptCipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        decryptCipher.init(javax.crypto.Cipher.DECRYPT_MODE, testBiometricSecretKey, javax.crypto.spec.GCMParameterSpec(128, iv))
+
+        val unlockResult = keySessionManager.unlockWithBiometric(decryptCipher)
+        assertTrue(unlockResult.isSuccess)
+        assertTrue(keySessionManager.isUnlocked.value)
+
+        val restoredEncKey = keySessionManager.getEncryptionKey()
+        org.junit.Assert.assertArrayEquals(initialEncKey, restoredEncKey)
+
+        // Test disable biometric
+        keySessionManager.disableBiometric()
+        assertFalse(keySessionManager.isBiometricEnabled)
+        assertFalse(keySessionManager.canUnlockWithBiometric())
+    }
 }

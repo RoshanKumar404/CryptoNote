@@ -242,6 +242,7 @@ fun NotesListScreen(
             }
 
             // In-Memory Search Bar
+            @Suppress("DEPRECATION")
             SearchBar(
                 query = uiState.searchQuery,
                 onQueryChange = { viewModel.onSearchQueryChanged(it) },
