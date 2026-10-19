@@ -37,6 +37,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
@@ -123,6 +124,7 @@ import java.util.Locale
 fun NotesListScreen(
     viewModel: NotesListViewModel,
     onNavigateToEditor: (noteId: String) -> Unit,
+    onNavigateToProfile: () -> Unit = {},
     onLockVault: () -> Unit = {},
     onLogout: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -272,17 +274,16 @@ fun NotesListScreen(
                         )
                     }
 
-                    // Sign Out Text Button
-                    TextButton(
-                        onClick = {
-                            viewModel.logout()
-                            onLogout()
-                        },
-                        modifier = Modifier.semantics { contentDescription = "Sign Out" }
+                    // Profile / Account Button
+                    IconButton(
+                        onClick = onNavigateToProfile,
+                        modifier = Modifier.semantics { contentDescription = "Profile and Account Settings" }
                     ) {
-                        Text(
-                            text = "Sign Out",
-                            style = MaterialTheme.typography.labelLarge
+                        Icon(
+                            imageVector = Icons.Default.AccountCircle,
+                            contentDescription = "Profile",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(26.dp)
                         )
                     }
                 },

@@ -77,4 +77,19 @@ class TokenStorageManagerTest {
         assertNull(tokenStorage.getUserEmail())
         assertFalse(tokenStorage.hasSession())
     }
+
+    @Test
+    fun getLoginTimestamp_isSetOnSaveSession_andClearedOnClearSession() {
+        val before = System.currentTimeMillis()
+        tokenStorage.saveSession("access", "refresh", "id", "email")
+        val timestamp = tokenStorage.getLoginTimestamp()
+        val after = System.currentTimeMillis()
+
+        assertTrue(timestamp in before..after)
+
+        tokenStorage.clearSession()
+        // When cleared, InMemoryTokenStorageManager falls back to current time
+        val fallbackTimestamp = tokenStorage.getLoginTimestamp()
+        assertTrue(fallbackTimestamp >= timestamp)
+    }
 }

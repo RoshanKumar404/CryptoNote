@@ -21,6 +21,7 @@ interface TokenStorageManager {
     fun getRefreshToken(): String?
     fun getUserId(): String?
     fun getUserEmail(): String?
+    fun getLoginTimestamp(): Long
     fun hasSession(): Boolean
     fun clearSession()
 }
@@ -63,6 +64,7 @@ class EncryptedTokenStorageManagerImpl @Inject constructor(
             .putString(KEY_REFRESH_TOKEN, refreshToken)
             .putString(KEY_USER_ID, userId)
             .putString(KEY_USER_EMAIL, email)
+            .putLong(KEY_LOGIN_TIMESTAMP, System.currentTimeMillis())
             .apply()
     }
 
@@ -89,6 +91,33 @@ class EncryptedTokenStorageManagerImpl @Inject constructor(
         return prefs.getString(KEY_USER_EMAIL, null)
     }
 
+    override fun getLoginTimestamp(): Long {
+        val stored = prefs.getLong(KEY_LOGIN_TIMESTAMP, 0L)
+        if (stored > 0L) return stored
+
+        // Fallback: extract iat (issued at) from JWT access token
+        val token = getAccessToken()
+        if (!token.isNullOrBlank()) {
+            try {
+                val parts = token.split(".")
+                if (parts.size >= 2) {
+                    val decodedBytes = android.util.Base64.decode(parts[1], android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP)
+                    val decoded = String(decodedBytes, Charsets.UTF_8)
+                    val json = org.json.JSONObject(decoded)
+                    if (json.has("iat")) {
+                        val iatSeconds = json.getLong("iat")
+                        val timeMs = iatSeconds * 1000L
+                        prefs.edit().putLong(KEY_LOGIN_TIMESTAMP, timeMs).apply()
+                        return timeMs
+                    }
+                }
+            } catch (_: Throwable) {
+                // Ignore decoding errors
+            }
+        }
+        return System.currentTimeMillis()
+    }
+
     override fun hasSession(): Boolean {
         return !getAccessToken().isNullOrBlank() && !getRefreshToken().isNullOrBlank()
     }
@@ -103,6 +132,7 @@ class EncryptedTokenStorageManagerImpl @Inject constructor(
         private const val KEY_REFRESH_TOKEN = "jwt_refresh_token"
         private const val KEY_USER_ID = "auth_user_id"
         private const val KEY_USER_EMAIL = "auth_user_email"
+        private const val KEY_LOGIN_TIMESTAMP = "auth_login_timestamp"
     }
 }
 
@@ -114,12 +144,14 @@ class InMemoryTokenStorageManager : TokenStorageManager {
     private var refreshToken: String? = null
     private var userId: String? = null
     private var userEmail: String? = null
+    private var loginTimestamp: Long = 0L
 
     override fun saveSession(accessToken: String, refreshToken: String, userId: String, email: String) {
         this.accessToken = accessToken
         this.refreshToken = refreshToken
         this.userId = userId
         this.userEmail = email
+        this.loginTimestamp = System.currentTimeMillis()
     }
 
     override fun saveTokens(accessToken: String, refreshToken: String) {
@@ -135,6 +167,8 @@ class InMemoryTokenStorageManager : TokenStorageManager {
 
     override fun getUserEmail(): String? = userEmail
 
+    override fun getLoginTimestamp(): Long = if (loginTimestamp > 0L) loginTimestamp else System.currentTimeMillis()
+
     override fun hasSession(): Boolean = !accessToken.isNullOrBlank() && !refreshToken.isNullOrBlank()
 
     override fun clearSession() {
@@ -142,5 +176,6 @@ class InMemoryTokenStorageManager : TokenStorageManager {
         refreshToken = null
         userId = null
         userEmail = null
+        loginTimestamp = 0L
     }
 }

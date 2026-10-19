@@ -17,11 +17,14 @@ import com.example.cryptnote.ui.editor.NoteEditorScreen
 import com.example.cryptnote.ui.editor.NoteEditorViewModel
 import com.example.cryptnote.ui.notes.NotesListScreen
 import com.example.cryptnote.ui.notes.NotesListViewModel
+import com.example.cryptnote.ui.profile.ProfileScreen
+import com.example.cryptnote.ui.profile.ProfileViewModel
 
 sealed class Screen(val route: String) {
     data object Auth : Screen("auth")
     data object VaultAuth : Screen("vault_auth")
     data object NotesList : Screen("notes_list")
+    data object Profile : Screen("profile")
     data object NoteEditor : Screen("note_editor/{noteId}") {
         fun createRoute(noteId: String) = "note_editor/$noteId"
     }
@@ -116,6 +119,9 @@ fun CryptoNoteNavGraph(
                 onNavigateToEditor = { noteId ->
                     navController.navigate(Screen.NoteEditor.createRoute(noteId))
                 },
+                onNavigateToProfile = {
+                    navController.navigate(Screen.Profile.route)
+                },
                 onLockVault = {
                     navController.navigate(Screen.VaultAuth.route) {
                         popUpTo(0) { inclusive = true }
@@ -123,6 +129,26 @@ fun CryptoNoteNavGraph(
                 },
                 onLogout = {
                     navController.navigate(Screen.Auth.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable(route = Screen.Profile.route) {
+            val viewModel: ProfileViewModel = hiltViewModel()
+            ProfileScreen(
+                viewModel = viewModel,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateToAuth = {
+                    navController.navigate(Screen.Auth.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
+                onNavigateToVaultLock = {
+                    navController.navigate(Screen.VaultAuth.route) {
                         popUpTo(0) { inclusive = true }
                     }
                 }
