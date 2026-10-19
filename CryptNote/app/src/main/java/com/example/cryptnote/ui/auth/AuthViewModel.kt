@@ -44,6 +44,7 @@ class AuthViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
+    val authState: StateFlow<AuthState> = authRepository.authState
 
     private val _eventFlow = MutableSharedFlow<AuthUiEvent>()
     val eventFlow: SharedFlow<AuthUiEvent> = _eventFlow.asSharedFlow()

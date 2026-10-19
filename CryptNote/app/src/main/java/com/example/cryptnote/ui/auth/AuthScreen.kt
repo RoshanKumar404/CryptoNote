@@ -66,6 +66,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.cryptnote.data.repository.AuthState
 
 @Composable
 fun AuthScreen(
@@ -74,9 +75,25 @@ fun AuthScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val authState by viewModel.authState.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     val snackbarHostState = remember { SnackbarHostState() }
     var showForgotDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(authState) {
+        if (authState is AuthState.Authenticated) {
+            onAuthenticated()
+        }
+    }
+
+    LaunchedEffect(viewModel.eventFlow) {
+        viewModel.eventFlow.collect { event ->
+            when (event) {
+                is AuthUiEvent.NavigateToNotes -> onAuthenticated()
+                is AuthUiEvent.ShowSnackbar -> snackbarHostState.showSnackbar(event.message)
+            }
+        }
+    }
 
     if (showForgotDialog) {
         var resetEmail by remember(showForgotDialog) { mutableStateOf(uiState.email) }
