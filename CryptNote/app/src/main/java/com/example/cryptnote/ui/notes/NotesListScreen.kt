@@ -45,7 +45,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sync
@@ -269,26 +268,6 @@ fun NotesListScreen(
                         }
                     }
 
-                    // Sync / Refresh Button
-                    IconButton(
-                        onClick = { viewModel.refreshNotes() },
-                        enabled = !uiState.isRefreshing,
-                        modifier = Modifier.semantics { contentDescription = "Sync Notes with Cloud" }
-                    ) {
-                        if (uiState.isRefreshing) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Sync Notes",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
 
                     // Theme Customizer Button
                     IconButton(
@@ -1377,7 +1356,11 @@ fun EmptyNotesView(
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(32.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(32.dp),
+            verticalArrangement = Arrangement.Center
         ) {
             Box(
                 modifier = Modifier
