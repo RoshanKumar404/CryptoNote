@@ -5,6 +5,11 @@ import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.fragment.app.FragmentActivity
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.cryptnote.data.preferences.ThemeMode
+import com.example.cryptnote.data.preferences.ThemePreferencesManager
 import com.example.cryptnote.security.KeySessionManager
 import com.example.cryptnote.security.lock.InactivityLockManager
 import com.example.cryptnote.security.token.TokenStorageManager
@@ -26,6 +31,9 @@ class MainActivity : FragmentActivity() {
     @Inject
     lateinit var inactivityLockManager: InactivityLockManager
 
+    @Inject
+    lateinit var themePreferencesManager: ThemePreferencesManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -37,7 +45,23 @@ class MainActivity : FragmentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            CryptNoteTheme {
+            val themeMode by themePreferencesManager.themeMode.collectAsStateWithLifecycle(
+                initialValue = ThemeMode.SYSTEM
+            )
+            val themeColor by themePreferencesManager.themeColor.collectAsStateWithLifecycle(
+                initialValue = com.example.cryptnote.data.preferences.ThemeColor.CYBER_TEAL
+            )
+            val dynamicColor by themePreferencesManager.dynamicColor.collectAsStateWithLifecycle(
+                initialValue = false
+            )
+
+            val isDark = when (themeMode) {
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+            }
+
+            CryptNoteTheme(darkTheme = isDark, dynamicColor = dynamicColor, themeColor = themeColor) {
                 val startDestination = when {
                     !tokenStorageManager.hasSession() -> Screen.Auth.route
                     !keySessionManager.isUnlocked.value -> Screen.VaultAuth.route

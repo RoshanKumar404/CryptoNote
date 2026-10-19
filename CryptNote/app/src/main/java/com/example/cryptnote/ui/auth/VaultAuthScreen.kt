@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -47,12 +48,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,12 +79,14 @@ import dagger.hilt.android.EntryPointAccessors
 fun VaultAuthScreen(
     viewModel: VaultAuthViewModel,
     onAuthenticated: () -> Unit,
+    onSignOut: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val activity = context as? FragmentActivity
     val snackbarHostState = remember { SnackbarHostState() }
+    var showForgotPhraseDialog by remember { mutableStateOf(false) }
 
     val biometricAuthManager = remember {
         try {
@@ -94,6 +100,7 @@ fun VaultAuthScreen(
         viewModel.eventFlow.collect { event ->
             when (event) {
                 is VaultAuthEvent.Authenticated -> onAuthenticated()
+                is VaultAuthEvent.SignOut -> onSignOut()
                 is VaultAuthEvent.RequestBiometricAuth -> {
                     if (activity != null && biometricAuthManager != null) {
                         biometricAuthManager.authenticate(
@@ -425,7 +432,67 @@ fun VaultAuthScreen(
                 }
             }
 
+            if (uiState.isSetup) {
+                Spacer(modifier = Modifier.height(16.dp))
+                TextButton(onClick = { showForgotPhraseDialog = true }) {
+                    Text(
+                        text = "Forgot Master Passphrase?",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(28.dp))
+        }
+
+        if (showForgotPhraseDialog) {
+            AlertDialog(
+                onDismissRequest = { showForgotPhraseDialog = false },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Lost Master Passphrase?")
+                    }
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Because CryptoNote uses client-side zero-knowledge encryption, your master passphrase is known only to you and is never stored on our servers.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "If you cannot recall your passphrase, you can sign out and reset your credentials. Notes synced to this account will be reset for security.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showForgotPhraseDialog = false
+                            viewModel.signOutAndReset()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Sign Out & Reset")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showForgotPhraseDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
     }
 }

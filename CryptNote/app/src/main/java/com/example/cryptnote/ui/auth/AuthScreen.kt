@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -43,10 +44,13 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,14 +74,108 @@ fun AuthScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     val snackbarHostState = remember { SnackbarHostState() }
+    var showForgotDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(viewModel.eventFlow) {
-        viewModel.eventFlow.collect { event ->
-            when (event) {
-                is AuthUiEvent.NavigateToNotes -> onAuthenticated()
-                is AuthUiEvent.ShowSnackbar -> snackbarHostState.showSnackbar(event.message)
+    if (showForgotDialog) {
+        var resetEmail by remember { mutableStateOf(uiState.email) }
+        var resetPassphrase by remember { mutableStateOf("") }
+        var isResetFormVisible by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { showForgotDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Security,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isResetFormVisible) "Reset Account" else "Zero-Knowledge Recovery",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (!isResetFormVisible) {
+                        Text(
+                            text = "CryptoNote uses client-side Zero-Knowledge encryption. Your master passphrase is never stored on our servers, so it cannot be recovered or sent by email.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                            ),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = "Options to regain access:",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "• Restore access with your 24-word recovery phrase if you generated one.\n• Or reset your account to set a new passphrase (existing encrypted server notes will be cleared for security).",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    lineHeight = 16.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = "Set a new master passphrase for your account. Inaccessible encrypted notes will be cleared so you can use your account freshly.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(
+                            value = resetEmail,
+                            onValueChange = { resetEmail = it },
+                            label = { Text("Account Email") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = resetPassphrase,
+                            onValueChange = { resetPassphrase = it },
+                            label = { Text("New Master Passphrase (8+ chars)") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                if (!isResetFormVisible) {
+                    Button(onClick = { isResetFormVisible = true }) {
+                        Text("Reset Account & Passphrase")
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            viewModel.resetAccount(resetEmail, resetPassphrase)
+                            showForgotDialog = false
+                        },
+                        enabled = resetEmail.isNotBlank() && resetPassphrase.length >= 8
+                    ) {
+                        Text("Confirm Reset")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showForgotDialog = false }) {
+                    Text("Close")
+                }
             }
-        }
+        )
     }
 
     Scaffold(
@@ -253,6 +351,24 @@ fun AuthScreen(
                 isError = !uiState.isPassphraseValid,
                 shape = RoundedCornerShape(12.dp)
             )
+
+            if (uiState.selectedTab == AuthTab.LOGIN) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 2.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = { showForgotDialog = true }) {
+                        Text(
+                            text = "Forgot Passphrase?",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
 
             // Confirm Passphrase Input (Register tab only)
             AnimatedVisibility(

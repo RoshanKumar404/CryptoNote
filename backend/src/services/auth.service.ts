@@ -152,6 +152,72 @@ export class AuthService {
       };
     });
   }
+
+  /**
+   * Resets user password hash and clears un-decryptable server data.
+   * Useful when user forgets their master passphrase or needs an account reset.
+   */
+  async resetAccount(input: LoginInput): Promise<AuthResponse> {
+    const user = await prisma.user.findUnique({
+      where: { email: input.email },
+    });
+
+    if (!user) {
+      throw new AuthError(404, 'No account found with this email address');
+    }
+
+    const passwordHash = await hashPassword(input.password);
+
+    return prisma.$transaction(async (tx) => {
+      // 1. Wipe un-decryptable notes since master key changed
+      await tx.note.deleteMany({
+        where: { userId: user.id },
+      });
+
+      // 2. Clear sync cursor & processed ops
+      await tx.processedOp.deleteMany({
+        where: { userId: user.id },
+      });
+
+      await tx.userSync.upsert({
+        where: { userId: user.id },
+        create: { userId: user.id, lastSeq: 0n },
+        update: { lastSeq: 0n },
+      });
+
+      // 3. Clear existing refresh tokens
+      await tx.refreshToken.deleteMany({
+        where: { userId: user.id },
+      });
+
+      // 4. Update user passwordHash
+      const updatedUser = await tx.user.update({
+        where: { id: user.id },
+        data: { passwordHash },
+      });
+
+      const accessToken = signAccessToken({ userId: updatedUser.id, email: updatedUser.email });
+      const rawRefreshToken = generateSecureToken();
+      const tokenHash = hashToken(rawRefreshToken);
+
+      await tx.refreshToken.create({
+        data: {
+          userId: updatedUser.id,
+          tokenHash,
+          expiresAt: getRefreshTokenExpiryDate(),
+        },
+      });
+
+      return {
+        accessToken,
+        refreshToken: rawRefreshToken,
+        user: {
+          id: updatedUser.id,
+          email: updatedUser.email,
+        },
+      };
+    });
+  }
 }
 
 export const authService = new AuthService();

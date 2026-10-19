@@ -13,4 +13,5 @@ interface SecurityEntryPoint {
     fun biometricAuthManager(): BiometricAuthManager
     fun inactivityLockManager(): InactivityLockManager
     fun clipboardAutoClearManager(): ClipboardAutoClearManager
+    fun themePreferencesManager(): com.example.cryptnote.data.preferences.ThemePreferencesManager
 }

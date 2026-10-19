@@ -154,6 +154,33 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    fun resetAccount(email: String, newPassphrase: String) {
+        val trimmedEmail = email.trim()
+        if (trimmedEmail.isBlank() || !isValidEmail(trimmedEmail)) {
+            _uiState.update { it.copy(errorMessage = "Please enter a valid email address", isEmailValid = false) }
+            return
+        }
+
+        if (newPassphrase.length < 8) {
+            _uiState.update { it.copy(errorMessage = "New passphrase must be at least 8 characters", isPassphraseValid = false) }
+            return
+        }
+
+        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        viewModelScope.launch {
+            val result = authRepository.resetAccount(trimmedEmail, newPassphrase.toCharArray())
+            _uiState.update { it.copy(isLoading = false) }
+            result.fold(
+                onSuccess = {
+                    _eventFlow.emit(AuthUiEvent.NavigateToNotes)
+                },
+                onFailure = { error ->
+                    _uiState.update { it.copy(errorMessage = error.message ?: "Account reset failed") }
+                }
+            )
+        }
+    }
+
     private fun isValidEmail(email: String): Boolean {
         return EMAIL_REGEX.matches(email)
     }

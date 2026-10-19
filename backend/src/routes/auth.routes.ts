@@ -55,6 +55,15 @@ export async function authRoutes(fastify: FastifyInstance, _opts: FastifyPluginO
   });
 
   /**
+   * POST /auth/reset
+   */
+  fastify.post('/reset', async (request, reply) => {
+    const input = loginSchema.parse(request.body);
+    const result = await authService.resetAccount(input);
+    return reply.status(200).send(result);
+  });
+
+  /**
    * POST /auth/refresh
    */
   fastify.post('/refresh', async (request, reply) => {

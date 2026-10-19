@@ -16,7 +16,8 @@ interface KeySessionManager {
     val isSetup: Boolean
     val isBiometricEnabled: Boolean
 
-    fun setupPassphrase(passphrase: CharArray): Result<Unit>
+    fun setupPassphrase(passphrase: CharArray, salt: ByteArray? = null): Result<Unit>
+    fun initializeWithMasterKey(masterKey: ByteArray, salt: ByteArray): Result<Unit>
     fun unlock(passphrase: CharArray): Result<Unit>
     fun lock()
     fun getEncryptionKey(): ByteArray
@@ -46,22 +47,22 @@ class KeySessionManagerImpl @Inject constructor(
     private var activeAuthKey: ByteArray? = null
 
     @Synchronized
-    override fun setupPassphrase(passphrase: CharArray): Result<Unit> {
+    override fun setupPassphrase(passphrase: CharArray, salt: ByteArray?): Result<Unit> {
         if (passphrase.size < MIN_PASSPHRASE_LENGTH) {
             return Result.failure(
                 IllegalArgumentException("Passphrase must be at least $MIN_PASSPHRASE_LENGTH characters")
             )
         }
 
-        val salt = cryptoManager.generateSalt(16)
-        val masterKey = cryptoManager.deriveMasterKey(passphrase, salt)
+        val effectiveSalt = salt ?: cryptoManager.generateSalt(16)
+        val masterKey = cryptoManager.deriveMasterKey(passphrase, effectiveSalt)
 
         try {
             val derived = cryptoManager.splitMasterKey(masterKey)
             val wrapped = keyWrapper.wrapKey(masterKey)
 
             keyStorageManager.storeVault(
-                salt = salt,
+                salt = effectiveSalt,
                 wrappedKey = wrapped.wrappedKey,
                 iv = wrapped.iv
             )
@@ -78,6 +79,30 @@ class KeySessionManagerImpl @Inject constructor(
             return Result.failure(e)
         } finally {
             masterKey.fill(0)
+        }
+    }
+
+    @Synchronized
+    override fun initializeWithMasterKey(masterKey: ByteArray, salt: ByteArray): Result<Unit> {
+        try {
+            val derived = cryptoManager.splitMasterKey(masterKey)
+            val wrapped = keyWrapper.wrapKey(masterKey)
+
+            keyStorageManager.storeVault(
+                salt = salt,
+                wrappedKey = wrapped.wrappedKey,
+                iv = wrapped.iv
+            )
+
+            lock()
+
+            activeEncryptionKey = derived.encryptionKey
+            activeAuthKey = derived.authKey
+            _isUnlocked.value = true
+
+            return Result.success(Unit)
+        } catch (e: Exception) {
+            return Result.failure(e)
         }
     }
 

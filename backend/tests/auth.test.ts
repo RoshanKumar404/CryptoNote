@@ -254,4 +254,47 @@ describe('Auth Service (BE-2 Integration Tests)', () => {
       expect(response.statusCode).toBe(401);
     });
   });
+
+  describe('POST /auth/reset', () => {
+    it('should successfully reset password and return fresh tokens', async () => {
+      const newPassword = 'BrandNewPassword456!';
+      const response = await app.inject({
+        method: 'POST',
+        url: '/auth/reset',
+        payload: {
+          email: testEmail,
+          password: newPassword,
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.accessToken).toBeDefined();
+      expect(body.refreshToken).toBeDefined();
+      expect(body.user.email).toBe(testEmail.toLowerCase());
+
+      // Verify that login works with the new password
+      const loginResponse = await app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: {
+          email: testEmail,
+          password: newPassword,
+        },
+      });
+      expect(loginResponse.statusCode).toBe(200);
+    });
+
+    it('should return 404 if resetting a non-existent email', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/auth/reset',
+        payload: {
+          email: 'does_not_exist@example.com',
+          password: 'SomePassword123!',
+        },
+      });
+      expect(response.statusCode).toBe(404);
+    });
+  });
 });

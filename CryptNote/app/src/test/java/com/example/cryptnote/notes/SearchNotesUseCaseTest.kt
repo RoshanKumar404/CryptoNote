@@ -71,12 +71,55 @@ class SearchNotesUseCaseTest {
         assertTrue(result.isEmpty())
     }
 
+    @Test
+    fun `pinned notes are prioritized at top of blank search results`() {
+        val notes = listOf(
+            createNote(id = "1", title = "Unpinned Recent", body = "A", updatedAt = 200, pinned = false),
+            createNote(id = "2", title = "Pinned Older", body = "B", updatedAt = 100, pinned = true),
+            createNote(id = "3", title = "Pinned Newest", body = "C", updatedAt = 300, pinned = true)
+        )
+
+        val result = searchNotesUseCase(notes, "")
+        assertEquals(3, result.size)
+        assertEquals("3", result[0].id)
+        assertEquals("2", result[1].id)
+        assertEquals("1", result[2].id)
+    }
+
+    @Test
+    fun `tagFilter returns only notes matching the specified tag`() {
+        val notes = listOf(
+            createNote(id = "1", title = "Work note", body = "Todo", tags = listOf("work", "crypto")),
+            createNote(id = "2", title = "Personal note", body = "Groceries", tags = listOf("personal")),
+            createNote(id = "3", title = "Another work note", body = "Meeting", tags = listOf("work"))
+        )
+
+        val result = searchNotesUseCase(notes, query = "", tagFilter = "#work")
+        assertEquals(2, result.size)
+        assertEquals("1", result[0].id)
+        assertEquals("3", result[1].id)
+    }
+
+    @Test
+    fun `search query matches tags as well`() {
+        val notes = listOf(
+            createNote(id = "1", title = "Important Doc", body = "Content", tags = listOf("finances")),
+            createNote(id = "2", title = "Recipe", body = "Cookies", tags = listOf("cooking"))
+        )
+
+        val result = searchNotesUseCase(notes, query = "finance")
+        assertEquals(1, result.size)
+        assertEquals("1", result[0].id)
+    }
+
     private fun createNote(
         id: String,
         title: String,
         body: String,
         deleted: Boolean = false,
-        updatedAt: Long = System.currentTimeMillis()
+        updatedAt: Long = System.currentTimeMillis(),
+        tags: List<String> = emptyList(),
+        pinned: Boolean = false
     ): Note {
         return Note(
             id = id,
@@ -85,7 +128,9 @@ class SearchNotesUseCaseTest {
             version = 1,
             updatedAt = updatedAt,
             deleted = deleted,
-            syncStatus = SyncStatus.SYNCED
+            syncStatus = SyncStatus.SYNCED,
+            tags = tags,
+            pinned = pinned
         )
     }
 }

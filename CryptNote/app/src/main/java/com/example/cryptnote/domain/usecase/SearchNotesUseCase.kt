@@ -14,30 +14,50 @@ import javax.inject.Singleton
 class SearchNotesUseCase @Inject constructor() {
 
     /**
-     * Filters and ranks [notes] based on [query].
+     * Filters and ranks [notes] based on [query] and optional [tagFilter].
      *
-     * If [query] is blank, all non-deleted notes are returned preserving their default order.
-     * When [query] is present:
-     * - Case-insensitive substring matching is evaluated across title and body.
-     * - Results are ranked by relevance: title matches rank above body-only matches.
+     * - Pinned notes are prioritized at the top.
+     * - Supports tag matching in search query as well as direct tag chip filtering.
+     * - Results are ranked by relevance: exact title > prefix title > title/tag > body.
      */
-    operator fun invoke(notes: List<Note>, query: String): List<Note> {
-        val trimmed = query.trim()
-        if (trimmed.isEmpty()) {
-            return notes.filterNot { it.deleted }
+    operator fun invoke(
+        notes: List<Note>,
+        query: String,
+        tagFilter: String? = null
+    ): List<Note> {
+        val activeNotes = notes.filterNot { it.deleted }.let { list ->
+            if (tagFilter.isNullOrBlank()) {
+                list
+            } else {
+                list.filter { note ->
+                    note.tags.any { it.equals(tagFilter.trim().removePrefix("#"), ignoreCase = true) }
+                }
+            }
         }
 
-        return notes
-            .filterNot { it.deleted }
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) {
+            return activeNotes.sortedWith(
+                compareByDescending<Note> { it.pinned }
+                    .thenByDescending { it.updatedAt }
+            )
+        }
+
+        val normalizedQuery = trimmed.removePrefix("#")
+
+        return activeNotes
             .mapNotNull { note ->
                 val titleMatch = note.title.contains(trimmed, ignoreCase = true)
                 val bodyMatch = note.body.contains(trimmed, ignoreCase = true)
+                val tagMatch = note.tags.any { it.contains(normalizedQuery, ignoreCase = true) }
 
-                if (titleMatch || bodyMatch) {
+                if (titleMatch || bodyMatch || tagMatch) {
                     val score = when {
-                        note.title.equals(trimmed, ignoreCase = true) -> 3
-                        note.title.startsWith(trimmed, ignoreCase = true) -> 2
-                        titleMatch -> 1
+                        note.title.equals(trimmed, ignoreCase = true) -> 4
+                        note.title.startsWith(trimmed, ignoreCase = true) -> 3
+                        titleMatch -> 2
+                        tagMatch -> 2
+                        bodyMatch -> 1
                         else -> 0
                     }
                     Pair(note, score)
@@ -46,7 +66,8 @@ class SearchNotesUseCase @Inject constructor() {
                 }
             }
             .sortedWith(
-                compareByDescending<Pair<Note, Int>> { it.second }
+                compareByDescending<Pair<Note, Int>> { it.first.pinned }
+                    .thenByDescending { it.second }
                     .thenByDescending { it.first.updatedAt }
             )
             .map { it.first }

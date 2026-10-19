@@ -68,6 +68,7 @@ class AuthRepositoryTest {
             tokenStorageManager = tokenStorage,
             keySessionManager = keySessionManager,
             keyStorageManager = keyStorage,
+            cryptoManager = cryptoManager,
             syncScheduler = fakeSyncScheduler,
             authEventBus = authEventBus,
             json = json
@@ -157,18 +158,17 @@ class AuthRepositoryTest {
     }
 
     @Test
-    fun login_failure_invalidPassphrase_failsWithoutCallingServer() = runBlocking {
+    fun login_failure_serverRejection_failsAndRemainsLocked() = runBlocking {
         val email = "bob@example.com"
-        val realPassphrase = "correct-passphrase-123".toCharArray()
-        keySessionManager.setupPassphrase(realPassphrase)
-        keySessionManager.lock()
-
         val wrongPassphrase = "wrong-passphrase-999".toCharArray()
+        fakeAuthApi.loginResult = Response.error(401, "{\"message\":\"Invalid email or password\"}".toResponseBody("application/json".toMediaType()))
+
         val result = authRepository.login(email, wrongPassphrase)
 
         assertTrue(result.isFailure)
         assertFalse(keySessionManager.isUnlocked.value)
-        assertNull(fakeAuthApi.lastLoginRequest)
+        org.junit.Assert.assertNotNull(fakeAuthApi.lastLoginRequest)
+        assertEquals(email, fakeAuthApi.lastLoginRequest?.email)
     }
 
     @Test
@@ -216,6 +216,11 @@ class AuthRepositoryTest {
         }
 
         override suspend fun login(request: LoginRequestDto): Response<AuthResponseDto> {
+            lastLoginRequest = request
+            return loginResult ?: throw IllegalStateException("loginResult not configured")
+        }
+
+        override suspend fun resetAccount(request: LoginRequestDto): Response<AuthResponseDto> {
             lastLoginRequest = request
             return loginResult ?: throw IllegalStateException("loginResult not configured")
         }

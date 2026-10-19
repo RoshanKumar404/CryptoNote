@@ -21,6 +21,9 @@ data class NoteEditorUiState(
     val noteId: String = "",
     val title: String = "",
     val body: String = "",
+    val tags: List<String> = emptyList(),
+    val isPinned: Boolean = false,
+    val isPreviewMode: Boolean = false,
     val lastSavedAt: Long = 0L,
     val isSaving: Boolean = false,
     val isInitialized: Boolean = false
@@ -51,6 +54,8 @@ class NoteEditorViewModel @Inject constructor(
                         it.copy(
                             title = existing.title,
                             body = existing.body,
+                            tags = existing.tags,
+                            isPinned = existing.pinned,
                             lastSavedAt = existing.updatedAt,
                             isInitialized = true
                         )
@@ -76,6 +81,28 @@ class NoteEditorViewModel @Inject constructor(
         scheduleAutoSave()
     }
 
+    fun onAddTag(rawTag: String) {
+        val cleanTag = rawTag.trim().removePrefix("#")
+        if (cleanTag.isNotBlank() && !_uiState.value.tags.contains(cleanTag)) {
+            _uiState.update { it.copy(tags = it.tags + cleanTag) }
+            scheduleAutoSave()
+        }
+    }
+
+    fun onRemoveTag(tag: String) {
+        _uiState.update { it.copy(tags = it.tags - tag) }
+        scheduleAutoSave()
+    }
+
+    fun onTogglePin() {
+        _uiState.update { it.copy(isPinned = !it.isPinned) }
+        scheduleAutoSave()
+    }
+
+    fun onTogglePreview() {
+        _uiState.update { it.copy(isPreviewMode = !it.isPreviewMode) }
+    }
+
     private fun scheduleAutoSave() {
         if (!initialLoaded) return
 
@@ -95,8 +122,8 @@ class NoteEditorViewModel @Inject constructor(
 
     private suspend fun saveInternal() {
         val currentState = _uiState.value
-        // Only save if there is content to persist
-        if (currentState.title.isBlank() && currentState.body.isBlank()) {
+        // Only save if there is content or tags to persist
+        if (currentState.title.isBlank() && currentState.body.isBlank() && currentState.tags.isEmpty()) {
             return
         }
 
@@ -106,6 +133,8 @@ class NoteEditorViewModel @Inject constructor(
             id = currentState.noteId,
             title = currentState.title.trim(),
             body = currentState.body.trim(),
+            tags = currentState.tags,
+            pinned = currentState.isPinned,
             updatedAt = System.currentTimeMillis()
         )
 

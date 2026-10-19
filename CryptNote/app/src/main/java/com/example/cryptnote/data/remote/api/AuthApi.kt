@@ -34,6 +34,14 @@ interface AuthApi {
     ): Response<AuthResponseDto>
 
     /**
+     * Resets user account credentials and clears server sync state when passphrase is lost.
+     */
+    @POST("auth/reset")
+    suspend fun resetAccount(
+        @Body request: LoginRequestDto
+    ): Response<AuthResponseDto>
+
+    /**
      * Exchanges a valid refresh token for a refreshed JWT access and refresh token pair.
      */
     @POST("auth/refresh")

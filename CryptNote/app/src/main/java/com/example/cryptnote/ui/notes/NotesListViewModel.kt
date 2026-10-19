@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -28,6 +29,8 @@ data class NotesListUiState(
     val isLoading: Boolean = false,
     val notes: List<Note> = emptyList(),
     val searchQuery: String = "",
+    val selectedTag: String? = null,
+    val availableTags: List<String> = emptyList(),
     val conflictCount: Int = 0,
     val conflictPairs: List<ConflictPair> = emptyList(),
     val selectedConflictPair: ConflictPair? = null
@@ -50,6 +53,9 @@ class NotesListViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    private val _selectedTag = MutableStateFlow<String?>(null)
+    val selectedTag: StateFlow<String?> = _selectedTag.asStateFlow()
+
     private val _selectedConflictPair = MutableStateFlow<ConflictPair?>(null)
     private var lastDeletedNote: Note? = null
 
@@ -60,23 +66,38 @@ class NotesListViewModel @Inject constructor(
         if (query.isEmpty()) 0L else 300L
     }
 
+    private val _allNotes = noteRepository.getAllNotes()
+
     private val _filteredNotes = combine(
-        noteRepository.getAllNotes(),
-        _debouncedQuery
-    ) { notes, query ->
-        searchNotesUseCase(notes, query)
+        _allNotes,
+        _debouncedQuery,
+        _selectedTag
+    ) { notes, query, tag ->
+        searchNotesUseCase(notes, query, tag)
+    }
+
+    private val _availableTags = _allNotes.map { notes ->
+        notes.filterNot { it.deleted }
+            .flatMap { it.tags }
+            .map { it.trim().removePrefix("#") }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
     }
 
     val uiState: StateFlow<NotesListUiState> = combine(
         _filteredNotes,
+        _availableTags,
         noteRepository.getConflictPairs(),
         _searchQuery,
         _selectedConflictPair
-    ) { filteredNotes, conflictPairs, rawQuery, selectedPair ->
+    ) { filteredNotes, tags, conflictPairs, rawQuery, selectedPair ->
         NotesListUiState(
             isLoading = false,
             notes = filteredNotes,
             searchQuery = rawQuery,
+            selectedTag = _selectedTag.value,
+            availableTags = tags,
             conflictCount = conflictPairs.size,
             conflictPairs = conflictPairs,
             selectedConflictPair = selectedPair
@@ -89,6 +110,20 @@ class NotesListViewModel @Inject constructor(
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
+    }
+
+    fun onTagSelected(tag: String?) {
+        _selectedTag.value = if (_selectedTag.value == tag) null else tag
+    }
+
+    fun onTogglePin(note: Note) {
+        viewModelScope.launch {
+            val updated = note.copy(
+                pinned = !note.pinned,
+                updatedAt = System.currentTimeMillis()
+            )
+            noteRepository.saveNote(updated)
+        }
     }
 
     fun onConflictSelected(conflictGroupId: String) {

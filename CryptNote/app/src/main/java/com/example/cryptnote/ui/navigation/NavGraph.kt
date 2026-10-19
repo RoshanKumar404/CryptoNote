@@ -58,7 +58,27 @@ fun CryptoNoteNavGraph(
     NavHost(
         navController = navController,
         startDestination = startDestination,
-        modifier = modifier
+        modifier = modifier,
+        enterTransition = {
+            androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(250)) +
+                    androidx.compose.animation.scaleIn(
+                        initialScale = 0.95f,
+                        animationSpec = androidx.compose.animation.core.tween(250)
+                    )
+        },
+        exitTransition = {
+            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200))
+        },
+        popEnterTransition = {
+            androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(250)) +
+                    androidx.compose.animation.scaleIn(
+                        initialScale = 0.95f,
+                        animationSpec = androidx.compose.animation.core.tween(250)
+                    )
+        },
+        popExitTransition = {
+            androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200))
+        }
     ) {
         composable(route = Screen.Auth.route) {
             val viewModel: AuthViewModel = hiltViewModel()
@@ -79,6 +99,11 @@ fun CryptoNoteNavGraph(
                 onAuthenticated = {
                     navController.navigate(Screen.NotesList.route) {
                         popUpTo(Screen.VaultAuth.route) { inclusive = true }
+                    }
+                },
+                onSignOut = {
+                    navController.navigate(Screen.Auth.route) {
+                        popUpTo(0) { inclusive = true }
                     }
                 }
             )

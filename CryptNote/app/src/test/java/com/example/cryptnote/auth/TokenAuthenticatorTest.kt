@@ -188,6 +188,9 @@ class TokenAuthenticatorTest {
         override suspend fun login(request: LoginRequestDto): RetrofitResponse<AuthResponseDto> =
             throw NotImplementedError()
 
+        override suspend fun resetAccount(request: LoginRequestDto): RetrofitResponse<AuthResponseDto> =
+            throw NotImplementedError()
+
         override suspend fun refresh(request: RefreshRequestDto): RetrofitResponse<TokenPairDto> {
             refreshCallCount++
             return refreshResult ?: throw IllegalStateException("refreshResult not configured")

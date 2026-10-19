@@ -30,6 +30,7 @@ data class VaultAuthUiState(
 
 sealed interface VaultAuthEvent {
     data object Authenticated : VaultAuthEvent
+    data object SignOut : VaultAuthEvent
     data class RequestBiometricAuth(val cipher: javax.crypto.Cipher) : VaultAuthEvent
     data class ShowMessage(val message: String) : VaultAuthEvent
 }
@@ -38,7 +39,9 @@ sealed interface VaultAuthEvent {
 class VaultAuthViewModel @Inject constructor(
     private val keySessionManager: KeySessionManager,
     private val biometricAuthManager: BiometricAuthManager,
-    private val biometricKeyManager: BiometricKeyManager
+    private val biometricKeyManager: BiometricKeyManager,
+    private val tokenStorageManager: com.example.cryptnote.security.token.TokenStorageManager,
+    private val keyStorageManager: com.example.cryptnote.security.KeyStorageManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -97,6 +100,15 @@ class VaultAuthViewModel @Inject constructor(
                 confirmPassphraseInput = "",
                 errorMessage = null
             )
+        }
+    }
+
+    fun signOutAndReset() {
+        tokenStorageManager.clearSession()
+        keyStorageManager.clear()
+        keySessionManager.lock()
+        viewModelScope.launch {
+            _eventFlow.emit(VaultAuthEvent.SignOut)
         }
     }
 

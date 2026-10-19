@@ -179,6 +179,14 @@ class AuthViewModelTest {
             }
         }
 
+        override suspend fun resetAccount(email: String, passphrase: CharArray): Result<Unit> {
+            return loginResult.also {
+                if (it.isSuccess) {
+                    _authState.value = AuthState.Authenticated("id_1", email)
+                }
+            }
+        }
+
         override suspend fun logout() {
             _authState.value = AuthState.Unauthenticated
         }

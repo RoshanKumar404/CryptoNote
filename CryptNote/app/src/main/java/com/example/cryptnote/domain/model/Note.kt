@@ -10,6 +10,9 @@ package com.example.cryptnote.domain.model
  * @property updatedAt Timestamp of last modification in epoch milliseconds.
  * @property deleted Soft-delete flag (tombstone).
  * @property syncStatus Current synchronization status with remote server.
+ * @property conflictGroupId Identifier for active conflict pairs, or null if not in conflict.
+ * @property tags List of category tags attached to the note.
+ * @property pinned Flag indicating whether the note is pinned to the top of the list.
  */
 data class Note(
     val id: String,
@@ -19,5 +22,7 @@ data class Note(
     val updatedAt: Long = System.currentTimeMillis(),
     val deleted: Boolean = false,
     val syncStatus: SyncStatus = SyncStatus.PENDING,
-    val conflictGroupId: String? = null
+    val conflictGroupId: String? = null,
+    val tags: List<String> = emptyList(),
+    val pinned: Boolean = false
 )

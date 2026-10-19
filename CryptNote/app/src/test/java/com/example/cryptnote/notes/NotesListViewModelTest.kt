@@ -192,11 +192,63 @@ class NotesListViewModelTest {
         eventJob.cancel()
     }
 
+    @Test
+    fun `tag selection filters notes and updates availableTags`() = runTest {
+        val note1 = createNote(id = "1", title = "Work 1", tags = listOf("work"))
+        val note2 = createNote(id = "2", title = "Work 2", tags = listOf("work", "crypto"))
+        val note3 = createNote(id = "3", title = "Personal", tags = listOf("personal"))
+        fakeNoteRepository.notesFlow.value = listOf(note1, note2, note3)
+
+        val job = launch { viewModel.uiState.collect {} }
+        advanceTimeBy(350)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(3, state.notes.size)
+        assertEquals(listOf("crypto", "personal", "work"), state.availableTags)
+
+        viewModel.onTagSelected("work")
+        advanceTimeBy(350)
+        advanceUntilIdle()
+
+        assertEquals("work", viewModel.uiState.value.selectedTag)
+        assertEquals(2, viewModel.uiState.value.notes.size)
+
+        // Toggling same tag unselects it
+        viewModel.onTagSelected("work")
+        advanceTimeBy(350)
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.selectedTag)
+        assertEquals(3, viewModel.uiState.value.notes.size)
+
+        job.cancel()
+    }
+
+    @Test
+    fun `onTogglePin saves note with toggled pinned flag`() = runTest {
+        val note = createNote(id = "pinned-test", title = "Pin Me", pinned = false)
+        fakeNoteRepository.notesFlow.value = listOf(note)
+
+        val job = launch { viewModel.uiState.collect {} }
+        advanceUntilIdle()
+
+        viewModel.onTogglePin(note)
+        advanceUntilIdle()
+
+        assertNotNull(fakeNoteRepository.lastSavedNote)
+        assertEquals("pinned-test", fakeNoteRepository.lastSavedNote?.id)
+        assertEquals(true, fakeNoteRepository.lastSavedNote?.pinned)
+
+        job.cancel()
+    }
+
     private fun createNote(
         id: String,
         title: String,
         body: String = "",
-        conflictGroupId: String? = null
+        conflictGroupId: String? = null,
+        tags: List<String> = emptyList(),
+        pinned: Boolean = false
     ): Note {
         return Note(
             id = id,
@@ -206,7 +258,9 @@ class NotesListViewModelTest {
             updatedAt = System.currentTimeMillis(),
             deleted = false,
             syncStatus = SyncStatus.SYNCED,
-            conflictGroupId = conflictGroupId
+            conflictGroupId = conflictGroupId,
+            tags = tags,
+            pinned = pinned
         )
     }
 
@@ -244,6 +298,7 @@ class NotesListViewModelTest {
         override fun hasActiveSession(): Boolean = false
         override suspend fun register(email: String, passphrase: CharArray): Result<Unit> = Result.success(Unit)
         override suspend fun login(email: String, passphrase: CharArray): Result<Unit> = Result.success(Unit)
+        override suspend fun resetAccount(email: String, passphrase: CharArray): Result<Unit> = Result.success(Unit)
         override suspend fun logout() {
             loggedOut = true
             _authState.value = com.example.cryptnote.data.repository.AuthState.Unauthenticated

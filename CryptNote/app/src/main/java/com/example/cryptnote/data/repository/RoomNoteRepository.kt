@@ -152,7 +152,12 @@ class RoomNoteRepository @Inject constructor(
 
             val jsonPayload = Json.encodeToString(
                 NoteContent.serializer(),
-                NoteContent(title = note.title, body = note.body)
+                NoteContent(
+                    title = note.title,
+                    body = note.body,
+                    tags = note.tags,
+                    pinned = note.pinned
+                )
             )
 
             val encrypted = cryptoManager.encryptNote(
@@ -258,9 +263,16 @@ class RoomNoteRepository @Inject constructor(
         }
     }
 
+    private val jsonSerializer = Json {
+        ignoreUnknownKeys = true
+        coerceInputValues = true
+    }
+
     private fun NoteEntity.toDomainModel(): Note {
         var title = ""
         var body = ""
+        var tags = emptyList<String>()
+        var pinned = false
 
         try {
             if (keySessionManager.isUnlocked.value) {
@@ -272,9 +284,11 @@ class RoomNoteRepository @Inject constructor(
                     nonce = this.nonce,
                     encryptionKey = encryptionKey
                 )
-                val content = Json.decodeFromString(NoteContent.serializer(), decryptedJson)
+                val content = jsonSerializer.decodeFromString(NoteContent.serializer(), decryptedJson)
                 title = content.title
                 body = content.body
+                tags = content.tags
+                pinned = content.pinned
             } else {
                 title = "🔒 Encrypted Note"
                 body = "Vault is locked. Unlock to decrypt."
@@ -283,9 +297,11 @@ class RoomNoteRepository @Inject constructor(
             // Fallback for dev-mode plaintext notes created before FE-3
             try {
                 val jsonString = String(this.ciphertext, Charsets.UTF_8)
-                val content = Json.decodeFromString(NoteContent.serializer(), jsonString)
+                val content = jsonSerializer.decodeFromString(NoteContent.serializer(), jsonString)
                 title = content.title
                 body = content.body
+                tags = content.tags
+                pinned = content.pinned
             } catch (_: Exception) {
                 title = "⚠️ Decryption Error"
                 body = ""
@@ -306,7 +322,9 @@ class RoomNoteRepository @Inject constructor(
             updatedAt = this.updatedAt,
             deleted = this.deleted,
             syncStatus = status,
-            conflictGroupId = this.conflictGroupId
+            conflictGroupId = this.conflictGroupId,
+            tags = tags,
+            pinned = pinned
         )
     }
 }
