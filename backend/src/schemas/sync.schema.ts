@@ -11,22 +11,27 @@ export const pushOperationSchema = z
     version: z.number().int().min(1, { message: 'version must be >= 1' }),
     ciphertext: z.string().nullable().optional(),
     nonce: z.string().nullable().optional(),
+    envelope: z.string().nullable().optional(),
+    format_version: z.number().int().min(0).max(1, { message: 'Unsupported format_version. Supported versions: 0, 1' }).optional(),
+    key_id: z.string().nullable().optional(),
+    checksum: z.string().nullable().optional(),
   })
   .refine(
     (data) => {
       if (data.type === 'create' || data.type === 'update') {
-        return (
+        const hasLegacy =
           typeof data.ciphertext === 'string' &&
           data.ciphertext.length > 0 &&
           typeof data.nonce === 'string' &&
-          data.nonce.length > 0
-        );
+          data.nonce.length > 0;
+        const hasEnvelope = typeof data.envelope === 'string' && data.envelope.length > 0;
+        return hasLegacy || hasEnvelope;
       }
       return true;
     },
     {
-      message: 'ciphertext and nonce are required for create and update operations',
-      path: ['ciphertext'],
+      message: 'Either envelope or (ciphertext and nonce) are required for create and update operations',
+      path: ['envelope'],
     }
   );
 
@@ -68,6 +73,10 @@ export interface PullChangeItem {
   id: string;
   ciphertext: string | null;
   nonce: string | null;
+  envelope: string | null;
+  format_version: number;
+  key_id: string | null;
+  checksum: string | null;
   version: number;
   deleted: boolean;
   updated_at: number;
@@ -79,3 +88,4 @@ export interface PullResponse {
   next_cursor: number;
   has_more: boolean;
 }
+

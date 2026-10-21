@@ -17,7 +17,7 @@ model User {
   notes        Note[]
   processedOps ProcessedOp[]
   refreshTokens RefreshToken[]
-  wrappedKeys  WrappedKeys?
+  wrappedKeys  WrappedKeys[]
   devices      Device[]
 
   @@map("users")
@@ -35,12 +35,16 @@ model UserSync {
 model Note {
   id         String   @id @db.Uuid
   userId     String   @map("user_id") @db.Uuid
-  ciphertext Bytes?
-  nonce      Bytes?
-  version    Int
-  deleted    Boolean  @default(false)
-  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  serverSeq  BigInt   @map("server_seq") @db.BigInt
+  ciphertext    Bytes?
+  nonce         Bytes?
+  envelope      Bytes?
+  formatVersion Int      @default(0) @map("format_version") @db.SmallInt
+  keyId         Bytes?   @map("key_id")
+  checksum      Bytes?
+  version       Int
+  deleted       Boolean  @default(false)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  serverSeq     BigInt   @map("server_seq") @db.BigInt
 
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -77,16 +81,18 @@ model RefreshToken {
 }
 
 model WrappedKeys {
-  userId            String   @id @map("user_id") @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  keyVersion        Int      @default(1) @map("key_version")
   passWrappedMk     Bytes    @map("pass_wrapped_mk")
   passSalt          Bytes    @map("pass_salt")
   kdfParams         Json     @map("kdf_params")
   recoveryWrappedMk Bytes    @map("recovery_wrapped_mk")
-  keyVersion        Int      @default(1) @map("key_version")
+  kcv               Bytes?   @map("kcv")
   updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@id([userId, keyVersion])
   @@map("wrapped_keys")
 }
 

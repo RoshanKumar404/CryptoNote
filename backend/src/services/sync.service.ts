@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { prisma } from '../db/prisma';
 import { PushOperation, PushResultItem, PullResponse, PullChangeItem } from '../schemas/sync.schema';
 
@@ -22,15 +23,18 @@ export class SyncService {
       throw new SyncError(400, 'Bad Request', 'Batch size exceeds maximum limit of 100 operations');
     }
 
-    // Enforce 1MB max ciphertext limit per note
+    // Enforce 1MB max payload limit per note (ciphertext or envelope)
     for (const op of rawOps) {
       if (op.ciphertext) {
-        if (op.ciphertext.length > 2 * 1024 * 1024) {
-          throw new SyncError(413, 'Payload Too Large', 'Note ciphertext exceeds maximum size limit of 1MB');
-        }
         const byteLen = Buffer.from(op.ciphertext, 'base64').byteLength;
         if (byteLen > 1024 * 1024) {
           throw new SyncError(413, 'Payload Too Large', 'Note ciphertext exceeds maximum size limit of 1MB');
+        }
+      }
+      if (op.envelope) {
+        const byteLen = Buffer.from(op.envelope, 'base64url').byteLength;
+        if (byteLen > 1024 * 1024) {
+          throw new SyncError(413, 'Payload Too Large', 'Note envelope exceeds maximum size limit of 1MB');
         }
       }
     }
@@ -143,10 +147,46 @@ export class SyncService {
         `;
         const nextSeq = syncRow.last_seq;
 
-        // 2. Upsert note record
+        // 2. Prepare envelope / ciphertext fields
         const isDeleted = op.type === 'delete';
-        const ciphertextBuf = !isDeleted && op.ciphertext ? Buffer.from(op.ciphertext, 'base64') : null;
-        const nonceBuf = !isDeleted && op.nonce ? Buffer.from(op.nonce, 'base64') : null;
+        let envelopeBuf: Buffer | null = null;
+        let formatVersion = op.format_version ?? 0;
+        let keyIdBuf: Buffer | null = null;
+        let checksumBuf: Buffer | null = null;
+        let ciphertextBuf: Buffer | null = null;
+        let nonceBuf: Buffer | null = null;
+
+        if (!isDeleted) {
+          if (op.envelope) {
+            envelopeBuf = Buffer.from(op.envelope, 'base64url');
+            formatVersion = op.format_version ?? 1;
+            const computedChecksum = crypto.createHash('sha256').update(envelopeBuf).digest();
+
+            if (op.checksum) {
+              const expectedBuf =
+                op.checksum.length === 64
+                  ? Buffer.from(op.checksum, 'hex')
+                  : Buffer.from(op.checksum, 'base64url');
+
+              if (expectedBuf.byteLength !== 32 || !crypto.timingSafeEqual(computedChecksum, expectedBuf)) {
+                throw new SyncError(400, 'Bad Request', 'Envelope checksum mismatch');
+              }
+              checksumBuf = expectedBuf;
+            } else {
+              checksumBuf = computedChecksum;
+            }
+
+            if (op.key_id) {
+              keyIdBuf = Buffer.from(op.key_id, 'base64url');
+            }
+          } else if (op.ciphertext && op.nonce) {
+            ciphertextBuf = Buffer.from(op.ciphertext, 'base64');
+            nonceBuf = Buffer.from(op.nonce, 'base64');
+            envelopeBuf = Buffer.concat([nonceBuf, ciphertextBuf]);
+            formatVersion = 0;
+            checksumBuf = crypto.createHash('sha256').update(envelopeBuf).digest();
+          }
+        }
 
         await tx.note.upsert({
           where: { id: op.note_id },
@@ -155,6 +195,10 @@ export class SyncService {
             userId,
             ciphertext: ciphertextBuf,
             nonce: nonceBuf,
+            envelope: envelopeBuf,
+            formatVersion,
+            keyId: keyIdBuf,
+            checksum: checksumBuf,
             version: op.version,
             deleted: isDeleted,
             serverSeq: nextSeq,
@@ -162,6 +206,10 @@ export class SyncService {
           update: {
             ciphertext: ciphertextBuf,
             nonce: nonceBuf,
+            envelope: envelopeBuf,
+            formatVersion,
+            keyId: keyIdBuf,
+            checksum: checksumBuf,
             version: op.version,
             deleted: isDeleted,
             serverSeq: nextSeq,
@@ -215,15 +263,29 @@ export class SyncService {
     const hasMore = notes.length > pageSize;
     const pageNotes = hasMore ? notes.slice(0, pageSize) : notes;
 
-    const changes: PullChangeItem[] = pageNotes.map((note) => ({
-      id: note.id,
-      ciphertext: note.ciphertext ? Buffer.from(note.ciphertext).toString('base64') : null,
-      nonce: note.nonce ? Buffer.from(note.nonce).toString('base64') : null,
-      version: note.version,
-      deleted: note.deleted,
-      updated_at: note.updatedAt.getTime(),
-      server_seq: Number(note.serverSeq),
-    }));
+    const changes: PullChangeItem[] = pageNotes.map((note) => {
+      let envelopeStr: string | null = null;
+      if (note.envelope) {
+        envelopeStr = Buffer.from(note.envelope).toString('base64url');
+      } else if (note.nonce && note.ciphertext) {
+        envelopeStr = Buffer.concat([Buffer.from(note.nonce), Buffer.from(note.ciphertext)]).toString('base64url');
+      }
+
+      return {
+        id: note.id,
+        ciphertext: note.ciphertext ? Buffer.from(note.ciphertext).toString('base64') : null,
+        nonce: note.nonce ? Buffer.from(note.nonce).toString('base64') : null,
+        envelope: envelopeStr,
+        format_version: note.formatVersion,
+        key_id: note.keyId ? Buffer.from(note.keyId).toString('base64url') : null,
+        checksum: note.checksum ? Buffer.from(note.checksum).toString('base64url') : null,
+        version: note.version,
+        deleted: note.deleted,
+        updated_at: note.updatedAt.getTime(),
+        server_seq: Number(note.serverSeq),
+      };
+    });
+
 
     const nextCursor = changes.length > 0 ? changes[changes.length - 1].server_seq : Number(sinceSeq);
 
