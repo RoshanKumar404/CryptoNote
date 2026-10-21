@@ -19,8 +19,10 @@ import com.example.cryptnote.ui.notes.NotesListScreen
 import com.example.cryptnote.ui.notes.NotesListViewModel
 import com.example.cryptnote.ui.profile.ProfileScreen
 import com.example.cryptnote.ui.profile.ProfileViewModel
+import com.example.cryptnote.ui.splash.SplashScreen
 
 sealed class Screen(val route: String) {
+    data object Splash : Screen("splash")
     data object Auth : Screen("auth")
     data object VaultAuth : Screen("vault_auth")
     data object NotesList : Screen("notes_list")
@@ -34,7 +36,7 @@ sealed class Screen(val route: String) {
 fun CryptoNoteNavGraph(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
-    startDestination: String = Screen.Auth.route
+    targetDestination: String = Screen.Auth.route
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val lockManager = androidx.compose.runtime.remember {
@@ -49,7 +51,7 @@ fun CryptoNoteNavGraph(
         lockManager?.isLocked?.collect { isLocked ->
             if (isLocked) {
                 val currentRoute = navController.currentBackStackEntry?.destination?.route
-                if (currentRoute != null && currentRoute != Screen.Auth.route && currentRoute != Screen.VaultAuth.route) {
+                if (currentRoute != null && currentRoute != Screen.Splash.route && currentRoute != Screen.Auth.route && currentRoute != Screen.VaultAuth.route) {
                     navController.navigate(Screen.VaultAuth.route) {
                         popUpTo(0) { inclusive = true }
                     }
@@ -60,7 +62,7 @@ fun CryptoNoteNavGraph(
 
     NavHost(
         navController = navController,
-        startDestination = startDestination,
+        startDestination = Screen.Splash.route,
         modifier = modifier,
         enterTransition = {
             androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(250)) +
@@ -83,6 +85,17 @@ fun CryptoNoteNavGraph(
             androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200))
         }
     ) {
+        composable(route = Screen.Splash.route) {
+            SplashScreen(
+                targetDestination = targetDestination,
+                onAnimationComplete = { dest ->
+                    navController.navigate(dest) {
+                        popUpTo(Screen.Splash.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+
         composable(route = Screen.Auth.route) {
             val viewModel: AuthViewModel = hiltViewModel()
             AuthScreen(

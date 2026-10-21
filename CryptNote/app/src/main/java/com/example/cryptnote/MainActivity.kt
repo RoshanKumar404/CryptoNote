@@ -1,7 +1,6 @@
 package com.example.cryptnote
 
 import android.os.Bundle
-import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.fragment.app.FragmentActivity
@@ -53,12 +52,6 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // NV-FE-5: FLAG_SECURE on both tabs (anti-forensics screen capture prevention)
-//        window.setFlags(
-//            WindowManager.LayoutParams.FLAG_SECURE,
-//            WindowManager.LayoutParams.FLAG_SECURE
-//        )
-
         val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
         registerReceiver(screenOffReceiver, filter)
 
@@ -81,12 +74,12 @@ class MainActivity : FragmentActivity() {
             }
 
             CryptNoteTheme(darkTheme = isDark, dynamicColor = dynamicColor, themeColor = themeColor) {
-                val startDestination = when {
+                val targetDestination = when {
                     !tokenStorageManager.hasSession() -> Screen.Auth.route
                     !keySessionManager.isUnlocked.value -> Screen.VaultAuth.route
                     else -> Screen.NotesList.route
                 }
-                CryptoNoteNavGraph(startDestination = startDestination)
+                CryptoNoteNavGraph(targetDestination = targetDestination)
             }
         }
     }
