@@ -41,6 +41,7 @@ class SyncWorker @AssistedInject constructor(
     private val syncStateDao: SyncStateDao,
     private val syncApi: SyncApi,
     private val tokenStorageManager: com.example.cryptnote.security.token.TokenStorageManager,
+    private val keySessionManager: com.example.cryptnote.security.KeySessionManager,
     private val json: Json
 ) : CoroutineWorker(appContext, workerParams) {
 
@@ -72,6 +73,9 @@ class SyncWorker @AssistedInject constructor(
      * Failed or conflicted operations for note A block subsequent operations for note A without stalling note B.
      */
     suspend fun processOutbox(): Boolean {
+        // Reset previously failed entries back to pending for retry
+        outboxDao.resetFailedEntries(maxAttempts = 10)
+
         // Track notes currently blocked by earlier failed or conflicted operations
         val blockedNotes = outboxDao.getBlockedNoteIds().toMutableSet()
 
@@ -107,38 +111,26 @@ class SyncWorker @AssistedInject constructor(
                 if (entry.type != "delete" && entry.payload.isNotBlank()) {
                     try {
                         val payload = json.decodeFromString(OutboxPayloadDto.serializer(), entry.payload)
-                        ciphertext = payload.ciphertext
-                        nonce = payload.nonce
-                        envelope = payload.envelope
-                        formatVersion = payload.formatVersion
-                        keyId = payload.keyId
-                        checksum = payload.checksum
-
-                        // Extract ciphertext & nonce from envelope if missing or incomplete
-                        if (!envelope.isNullOrBlank()) {
-                            val envBytes = try {
-                                Base64.getUrlDecoder().decode(envelope)
-                            } catch (_: Exception) {
-                                try { Base64.getDecoder().decode(envelope) } catch (_: Exception) { null }
-                            }
-                            if (envBytes != null && envBytes.size >= 22) {
-                                ciphertext = Base64.getEncoder().encodeToString(envBytes)
-                                nonce = Base64.getEncoder().encodeToString(envBytes.copyOfRange(10, 22))
-                            }
+                        if (!payload.envelope.isNullOrBlank()) {
+                            envelope = payload.envelope
+                            formatVersion = payload.formatVersion
+                            keyId = payload.keyId
+                            checksum = payload.checksum
+                        } else {
+                            ciphertext = payload.ciphertext
+                            nonce = payload.nonce
+                            formatVersion = 0
                         }
                     } catch (_: Exception) {
                         ciphertext = entry.payload
                         nonce = Base64.getEncoder().encodeToString(ByteArray(12))
+                        formatVersion = 0
                     }
                 }
 
-                if (entry.type != "delete") {
-                    if (ciphertext.isNullOrBlank()) {
-                        ciphertext = "e30="
-                    }
-                    if (nonce.isNullOrBlank()) {
-                        nonce = Base64.getEncoder().encodeToString(ByteArray(12))
-                    }
+                if (entry.type != "delete" && envelope.isNullOrBlank()) {
+                    if (ciphertext.isNullOrBlank()) ciphertext = "e30="
+                    if (nonce.isNullOrBlank()) nonce = Base64.getEncoder().encodeToString(ByteArray(12))
                 }
 
                 PushOpDto(
@@ -189,16 +181,13 @@ class SyncWorker @AssistedInject constructor(
                             noteDao.updateSyncStatus(entry.noteId, "synced")
                         }
                         "conflict" -> {
-                            outboxDao.markAsConflict(entry.opId)
-                            blockedNotes.add(entry.noteId)
-
                             val existing = noteDao.getNoteById(entry.noteId)
                             if (existing != null) {
                                 val conflictGroupId = existing.conflictGroupId ?: UUID.randomUUID().toString()
-                                // Tag the original note with conflict status and conflictGroupId
+                                // 1. Tag the original note with conflict status and conflictGroupId
                                 noteDao.insertNote(existing.copy(conflictGroupId = conflictGroupId, syncStatus = "conflict"))
 
-                                // Fork local edits into a side-by-side conflict note so edits are preserved
+                                // 2. Fork local edits into a side-by-side conflict note with a new UUID
                                 val forkId = UUID.randomUUID().toString()
                                 val forkEntity = existing.copy(
                                     id = forkId,
@@ -206,7 +195,27 @@ class SyncWorker @AssistedInject constructor(
                                     syncStatus = "conflict"
                                 )
                                 noteDao.insertNote(forkEntity)
+
+                                // 3. Enqueue a "create" operation for the fork so local edits reach the server
+                                val forkOpId = UUID.randomUUID().toString()
+                                outboxDao.insertOutboxEntry(
+                                    OutboxEntity(
+                                        opId = forkOpId,
+                                        noteId = forkId,
+                                        type = "create",
+                                        baseVersion = 0,
+                                        version = 1,
+                                        payload = entry.payload,
+                                        status = "pending",
+                                        createdAt = System.currentTimeMillis()
+                                    )
+                                )
+
+                                // 4. Mark the conflicted op on the original note as handled so the queue is unblocked
+                                outboxDao.markAsSent(entry.opId)
                             } else {
+                                outboxDao.markAsConflict(entry.opId)
+                                blockedNotes.add(entry.noteId)
                                 noteDao.updateSyncStatus(entry.noteId, "conflict")
                             }
                         }
@@ -241,7 +250,7 @@ class SyncWorker @AssistedInject constructor(
             }
 
             if (!response.isSuccessful || response.body() == null) {
-                return false
+                return true
             }
 
             val pullResponse = response.body()!!
@@ -256,8 +265,13 @@ class SyncWorker @AssistedInject constructor(
                         continue
                     }
 
+                    val existing = noteDao.getNoteById(change.id)
+                    // Rollback guard per SPEC-2 & FE-3: reject pulled change if local note version is strictly higher
+                    if (existing != null && change.version < existing.version) {
+                        continue
+                    }
+
                     if (change.deleted) {
-                        val existing = noteDao.getNoteById(change.id)
                         if (existing != null) {
                             noteDao.softDeleteNote(change.id, change.updatedAt)
                             noteDao.updateSyncStatus(change.id, "synced")
@@ -309,13 +323,18 @@ class SyncWorker @AssistedInject constructor(
                             formatVersion = change.formatVersion
                         }
 
-                        val existing = noteDao.getNoteById(change.id)
                         val conflictGroupId = existing?.conflictGroupId
                         val isVault = existing?.isVault ?: false
                         val syncStatus = if (conflictGroupId != null) "conflict" else "synced"
 
-                        val finalEnvelopeBytes = if (envelopeBytes == null && formatVersion == 1 && keyIdBytes != null && keyIdBytes.size == 8 && ciphertextBytes.isNotEmpty() && nonceBytes.size == 12) {
-                            byteArrayOf(1, 1) + keyIdBytes + nonceBytes + ciphertextBytes
+                        val currentKeyId = try {
+                            keySessionManager.getKeyId()
+                        } catch (_: Exception) { null }
+
+                        val effectiveKeyIdBytes = keyIdBytes ?: currentKeyId
+
+                        val finalEnvelopeBytes = if (envelopeBytes == null && formatVersion == 1 && effectiveKeyIdBytes != null && effectiveKeyIdBytes.size == 8 && ciphertextBytes.isNotEmpty() && nonceBytes.size == 12) {
+                            byteArrayOf(1, 1) + effectiveKeyIdBytes + nonceBytes + ciphertextBytes
                         } else {
                             envelopeBytes
                         }

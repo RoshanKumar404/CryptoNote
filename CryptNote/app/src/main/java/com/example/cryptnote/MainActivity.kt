@@ -54,10 +54,10 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
 
         // NV-FE-5: FLAG_SECURE on both tabs (anti-forensics screen capture prevention)
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_SECURE,
-            WindowManager.LayoutParams.FLAG_SECURE
-        )
+//        window.setFlags(
+//            WindowManager.LayoutParams.FLAG_SECURE,
+//            WindowManager.LayoutParams.FLAG_SECURE
+//        )
 
         val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
         registerReceiver(screenOffReceiver, filter)

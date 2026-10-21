@@ -179,6 +179,11 @@ export class SyncService {
             if (op.key_id) {
               keyIdBuf = Buffer.from(op.key_id, 'base64url');
             }
+
+            if (envelopeBuf.byteLength >= 22) {
+              nonceBuf = envelopeBuf.subarray(10, 22);
+              ciphertextBuf = envelopeBuf.subarray(22);
+            }
           } else if (op.ciphertext && op.nonce) {
             ciphertextBuf = Buffer.from(op.ciphertext, 'base64');
             nonceBuf = Buffer.from(op.nonce, 'base64');

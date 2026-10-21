@@ -42,7 +42,7 @@ export async function syncRoutes(fastify: FastifyInstance, _opts: FastifyPluginO
     return reply.status(500).send({
       statusCode: 500,
       error: 'Internal Server Error',
-      message: 'An unexpected error occurred during sync processing',
+      message: error.message || 'An unexpected error occurred during sync processing',
     });
   });
 

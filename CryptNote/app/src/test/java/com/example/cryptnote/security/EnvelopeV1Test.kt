@@ -30,7 +30,8 @@ class EnvelopeV1Test {
             noteId = noteId,
             version = version,
             plaintext = plaintext,
-            fixedNonce = fixedNonce
+            fixedNonce = fixedNonce,
+            includeVersionInAad = true
         )
 
         // Expected hex from SPEC-3 test vector
@@ -48,7 +49,61 @@ class EnvelopeV1Test {
         )
 
         assertTrue(openResult is OpenResult.Opened)
-        assertArrayEquals(plaintext, (openResult as OpenResult.Opened).plaintext)
+        val opened = openResult as OpenResult.Opened
+        assertArrayEquals(plaintext, opened.plaintext)
+        assertTrue(opened.isLegacyAad)
+    }
+
+    @Test
+    fun modernSeal_decouplesVersionFromAad_openSucceedsRegardlessOfVersion() {
+        val mk = ByteArray(32) { 1.toByte() }
+        val keyId = cryptoManager.deriveKeyId(mk)
+        val encKey = cryptoManager.splitMasterKey(mk).encryptionKey
+        val noteId = UUID.randomUUID()
+        val plaintext = "Modern version-independent envelope payload".toByteArray(Charsets.UTF_8)
+
+        // Seal with modern AAD (no version bound in AAD)
+        val sealed = EnvelopeV1.seal(
+            key = encKey,
+            keyId = keyId,
+            noteId = noteId,
+            plaintext = plaintext
+        )
+
+        // Opening with version 1, 5, or 100 must ALWAYS succeed
+        for (ver in listOf(1L, 2L, 5L, 42L, 100L)) {
+            val res = EnvelopeV1.open(encKey, keyId, noteId, ver, sealed)
+            assertTrue(res is OpenResult.Opened)
+            val openModern = res as OpenResult.Opened
+            assertArrayEquals(plaintext, openModern.plaintext)
+            assertTrue("Modern envelope must not be marked as legacy", !openModern.isLegacyAad)
+        }
+    }
+
+    @Test
+    fun legacyEnvelope_recoversWhenVersionDriftsDuringCoalescing() {
+        val mk = ByteArray(32) { 1.toByte() }
+        val keyId = cryptoManager.deriveKeyId(mk)
+        val encKey = cryptoManager.splitMasterKey(mk).encryptionKey
+        val noteId = UUID.randomUUID()
+        val plaintext = "Legacy note with drifted version".toByteArray(Charsets.UTF_8)
+
+        // Sealed at version 1 with version in AAD
+        val sealedLegacy = EnvelopeV1.seal(
+            key = encKey,
+            keyId = keyId,
+            noteId = noteId,
+            version = 1L,
+            plaintext = plaintext,
+            includeVersionInAad = true
+        )
+
+        // Stored version drifted to 4 due to outbox coalescing / server increments
+        val res = EnvelopeV1.open(encKey, keyId, noteId, version = 4L, env = sealedLegacy)
+        assertTrue(res is OpenResult.Opened)
+        val openDrifted = res as OpenResult.Opened
+        assertArrayEquals(plaintext, openDrifted.plaintext)
+        assertTrue(openDrifted.isLegacyAad)
     }
 
     @Test
