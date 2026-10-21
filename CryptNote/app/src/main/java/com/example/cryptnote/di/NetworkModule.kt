@@ -114,9 +114,9 @@ object NetworkModule {
             .addInterceptor(logging)
             .authenticator(tokenAuthenticator)
             .certificatePinner(certificatePinner)
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
-            .writeTimeout(15, TimeUnit.SECONDS)
+            .connectTimeout(45, TimeUnit.SECONDS)
+            .readTimeout(45, TimeUnit.SECONDS)
+            .writeTimeout(45, TimeUnit.SECONDS)
             .build()
     }
 

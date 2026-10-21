@@ -2,6 +2,7 @@ package com.example.cryptnote.ui.notes
 
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -287,8 +288,16 @@ fun NotesListScreen(
         )
     }
 
+    val animatedBorderColor by animateColorAsState(
+        targetValue = if (uiState.isOnline) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error,
+        animationSpec = tween(durationMillis = 500),
+        label = "SystemOnlineBorderAnimation"
+    )
+
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .border(width = 2.5.dp, color = animatedBorderColor),
         topBar = {
             TopAppBar(
                 title = {
@@ -304,6 +313,32 @@ fun NotesListScreen(
                             text = "CryptoNote",
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                         )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Surface(
+                            shape = CircleShape,
+                            color = if (uiState.isOnline) Color(0xFFE8F5E9) else MaterialTheme.colorScheme.errorContainer,
+                            modifier = Modifier.padding(start = 4.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(
+                                            color = animatedBorderColor,
+                                            shape = CircleShape
+                                        )
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (uiState.isOnline) "Online" else "Offline",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                    color = if (uiState.isOnline) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        }
                     }
                 },
                 actions = {
@@ -862,6 +897,7 @@ private fun NotesListContent(
                             note = note,
                             searchQuery = uiState.searchQuery,
                             isSelected = note.id == selectedNoteId,
+                            isVaultTab = isVaultTab,
                             onClick = { onNoteClick(note) },
                             onDelete = { viewModel.deleteNote(note) },
                             onTogglePin = { viewModel.onTogglePin(note) },
@@ -893,6 +929,7 @@ private fun NotesListContent(
                             note = note,
                             searchQuery = uiState.searchQuery,
                             isSelected = note.id == selectedNoteId,
+                            isVaultTab = isVaultTab,
                             onClick = { onNoteClick(note) },
                             onDelete = { viewModel.deleteNote(note) },
                             onTogglePin = { viewModel.onTogglePin(note) },
@@ -972,6 +1009,7 @@ private fun SwipeableNoteCard(
     note: Note,
     searchQuery: String,
     isSelected: Boolean,
+    isVaultTab: Boolean = false,
     onClick: () -> Unit,
     onDelete: () -> Unit,
     onTogglePin: () -> Unit,
@@ -980,35 +1018,84 @@ private fun SwipeableNoteCard(
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { dismissValue ->
-            if (dismissValue == SwipeToDismissBoxValue.EndToStart) {
-                onDelete()
-                true
-            } else {
-                false
+            when (dismissValue) {
+                SwipeToDismissBoxValue.EndToStart -> {
+                    onDelete()
+                    true
+                }
+                SwipeToDismissBoxValue.StartToEnd -> {
+                    if (onMoveToVault != null) {
+                        onMoveToVault()
+                        true
+                    } else {
+                        false
+                    }
+                }
+                else -> false
             }
         }
     )
 
     SwipeToDismissBox(
         state = dismissState,
-        enableDismissFromStartToEnd = false,
+        enableDismissFromStartToEnd = onMoveToVault != null,
+        enableDismissFromEndToStart = true,
         backgroundContent = {
-            val isSwipingLeft = dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart
+            val direction = dismissState.dismissDirection
             val progress = dismissState.progress
-            if (isSwipingLeft && progress > 0.05f) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.errorContainer)
-                        .padding(horizontal = 20.dp),
-                    contentAlignment = Alignment.CenterEnd
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete Note",
-                        tint = MaterialTheme.colorScheme.onErrorContainer
-                    )
+            if (progress > 0.05f) {
+                when (direction) {
+                    SwipeToDismissBoxValue.EndToStart -> {
+                        // Left swipe: Delete
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.errorContainer)
+                                .padding(horizontal = 20.dp),
+                            contentAlignment = Alignment.CenterEnd
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Delete",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Delete Note",
+                                    tint = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        }
+                    }
+                    SwipeToDismissBoxValue.StartToEnd -> {
+                        // Right swipe: Move to / from Vault
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                .padding(horizontal = 20.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (isVaultTab || note.isVault) Icons.Default.LockOpen else Icons.Default.Lock,
+                                    contentDescription = if (isVaultTab || note.isVault) "Move to Notes" else "Add to Vault",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isVaultTab || note.isVault) "Move to Notes" else "Add to Vault",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                    }
+                    else -> {}
                 }
             }
         }

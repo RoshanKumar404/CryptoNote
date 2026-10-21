@@ -55,7 +55,8 @@ data class NotesListUiState(
     val showUnlockVaultDialog: Boolean = false,
     val unlockVaultError: String? = null,
     val showDiagnosticsSheet: Boolean = false,
-    val recentDiagnostics: List<DecryptDiagnosticEntry> = emptyList()
+    val recentDiagnostics: List<DecryptDiagnosticEntry> = emptyList(),
+    val isOnline: Boolean = true
 )
 
 sealed interface NotesListEvent {
@@ -76,7 +77,8 @@ class NotesListViewModel @Inject constructor(
     private val keySessionManager: KeySessionManager? = null,
     private val decryptDiagnostics: DecryptDiagnostics? = null,
     private val biometricAuthManager: BiometricAuthManager? = null,
-    private val biometricKeyManager: BiometricKeyManager? = null
+    private val biometricKeyManager: BiometricKeyManager? = null,
+    private val connectivityObserver: com.example.cryptnote.sync.ConnectivityObserver? = null
 ) : ViewModel() {
 
     private val effectiveVaultLock: VaultLock = vaultLock ?: VaultLock(viewModelScope, {})
@@ -139,12 +141,32 @@ class NotesListViewModel @Inject constructor(
             .sorted()
     }
 
+    init {
+        connectivityObserver?.let { observer ->
+            viewModelScope.launch {
+                var prevOnline: Boolean? = null
+                observer.isOnline.collect { isOnline ->
+                    if (prevOnline != null && prevOnline != isOnline) {
+                        if (isOnline) {
+                            _eventFlow.emit(NotesListEvent.ShowMessage("Back online — syncing notes"))
+                            refreshNotes()
+                        } else {
+                            _eventFlow.emit(NotesListEvent.ShowMessage("You are offline — notes saved locally"))
+                        }
+                    }
+                    prevOnline = isOnline
+                }
+            }
+        }
+    }
+
     private data class DialogState(
         val isRefreshing: Boolean,
         val decNote: Note?,
         val showUnlock: Boolean,
         val unlockErr: String?,
-        val showDiag: Boolean
+        val showDiag: Boolean,
+        val isOnline: Boolean
     )
 
     val uiState: StateFlow<NotesListUiState> = combine(
@@ -162,9 +184,11 @@ class NotesListViewModel @Inject constructor(
             _selectedDecryptionErrorNote,
             _showUnlockVaultDialog,
             _unlockVaultError,
-            _showDiagnosticsSheet
-        ) { isRef, decNote, showUnlock, unlockErr, showDiag ->
-            DialogState(isRef, decNote, showUnlock, unlockErr, showDiag)
+            combine(_showDiagnosticsSheet, connectivityObserver?.isOnline ?: MutableStateFlow(true)) { diag, online ->
+                Pair(diag, online)
+            }
+        ) { isRef, decNote, showUnlock, unlockErr, (showDiag, online) ->
+            DialogState(isRef, decNote, showUnlock, unlockErr, showDiag, online)
         }
     ) { (notes, vaultNotes, tab), (vState, tags, query), (conflictPairs, selectedPair), dialogState ->
         NotesListUiState(
@@ -185,7 +209,8 @@ class NotesListViewModel @Inject constructor(
             showUnlockVaultDialog = dialogState.showUnlock,
             unlockVaultError = dialogState.unlockErr,
             showDiagnosticsSheet = dialogState.showDiag,
-            recentDiagnostics = decryptDiagnostics?.getRecent() ?: emptyList()
+            recentDiagnostics = decryptDiagnostics?.getRecent() ?: emptyList(),
+            isOnline = dialogState.isOnline
         )
     }.stateIn(
         scope = viewModelScope,
