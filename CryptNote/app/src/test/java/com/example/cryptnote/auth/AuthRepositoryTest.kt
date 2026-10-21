@@ -1,13 +1,18 @@
 package com.example.cryptnote.auth
 
 import com.example.cryptnote.data.remote.api.AuthApi
+import com.example.cryptnote.data.remote.api.KeysApi
 import com.example.cryptnote.data.remote.model.AuthResponseDto
+import com.example.cryptnote.data.remote.model.GetKeysResponseDto
 import com.example.cryptnote.data.remote.model.LoginRequestDto
+import com.example.cryptnote.data.remote.model.PutKeysRequestDto
+import com.example.cryptnote.data.remote.model.PutKeysResponseDto
 import com.example.cryptnote.data.remote.model.RefreshRequestDto
 import com.example.cryptnote.data.remote.model.RegisterRequestDto
 import com.example.cryptnote.data.remote.model.TokenPairDto
 import com.example.cryptnote.data.remote.model.UserDto
 import com.example.cryptnote.data.remote.model.UserResponseDto
+import com.example.cryptnote.data.remote.model.WrappedKeyRecordDto
 import com.example.cryptnote.data.repository.AuthRepository
 import com.example.cryptnote.data.repository.AuthRepositoryImpl
 import com.example.cryptnote.data.repository.AuthState
@@ -28,6 +33,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -185,6 +191,95 @@ class AuthRepositoryTest {
         assertTrue(authRepository.authState.value is AuthState.Unauthenticated)
     }
 
+    @Test
+    fun register_withKeysApi_backsUpWrappedKeysToServer() = runBlocking {
+        val email = "alice-keys@example.com"
+        val passphrase = "super-secret-keys-passphrase-2026"
+
+        fakeAuthApi.registerResult = Response.success(
+            AuthResponseDto(
+                accessToken = "access_jwt_123",
+                refreshToken = "refresh_jwt_456",
+                user = UserDto(id = "user_uuid_keys", email = email)
+            )
+        )
+
+        val fakeKeysApi = FakeKeysApi()
+        val repoWithKeys = AuthRepositoryImpl(
+            authApi = fakeAuthApi,
+            tokenStorageManager = tokenStorage,
+            keySessionManager = keySessionManager,
+            keyStorageManager = keyStorage,
+            cryptoManager = cryptoManager,
+            syncScheduler = fakeSyncScheduler,
+            authEventBus = authEventBus,
+            json = json,
+            database = null,
+            keysApi = fakeKeysApi,
+            keyLifecycleManager = null
+        )
+
+        val result = repoWithKeys.register(email, passphrase.toCharArray())
+
+        assertTrue(result.isSuccess)
+        assertNotNull(fakeKeysApi.lastPutRequest)
+        assertNotNull(fakeKeysApi.lastPutRequest?.passWrappedMk)
+        assertNotNull(fakeKeysApi.lastPutRequest?.passSalt)
+        assertNotNull(fakeKeysApi.lastPutRequest?.kcv)
+    }
+
+    @Test
+    fun login_withKeysApi_kcvMismatch_rejectsAndClearsVault() = runBlocking {
+        val email = "bob-keys@example.com"
+        val passphrase = "valid-passphrase-123".toCharArray()
+
+        fakeAuthApi.loginResult = Response.success(
+            AuthResponseDto(
+                accessToken = "login_access_token",
+                refreshToken = "login_refresh_token",
+                user = UserDto(id = "bob_keys_id", email = email)
+            )
+        )
+
+        val fakeKeysApi = FakeKeysApi()
+        // Provide a remote key record with a mismatched KCV
+        val mismatchedKcvBase64 = java.util.Base64.getEncoder().encodeToString(ByteArray(8) { 0xFF.toByte() })
+        fakeKeysApi.getKeysResult = Response.success(
+            GetKeysResponseDto(
+                exists = true,
+                latest = WrappedKeyRecordDto(
+                    keyVersion = 1,
+                    passWrappedMk = "dummyWrapped",
+                    passSalt = "dummySalt",
+                    recoveryWrappedMk = "dummyRec",
+                    kcv = mismatchedKcvBase64
+                )
+            )
+        )
+
+        val repoWithKeys = AuthRepositoryImpl(
+            authApi = fakeAuthApi,
+            tokenStorageManager = tokenStorage,
+            keySessionManager = keySessionManager,
+            keyStorageManager = keyStorage,
+            cryptoManager = cryptoManager,
+            syncScheduler = fakeSyncScheduler,
+            authEventBus = authEventBus,
+            json = json,
+            database = null,
+            keysApi = fakeKeysApi,
+            keyLifecycleManager = null
+        )
+
+        val result = repoWithKeys.login(email, passphrase)
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull()?.message?.contains("key check") == true)
+        assertFalse(keySessionManager.isUnlocked.value)
+        assertFalse(tokenStorage.hasSession())
+        assertTrue(repoWithKeys.authState.value is AuthState.Unauthenticated)
+    }
+
     private class FakeSyncScheduler : SyncScheduler {
         var periodicScheduled = false
         var immediateSyncScheduled = false
@@ -200,6 +295,23 @@ class AuthRepositoryTest {
 
         override fun cancelAll() {
             cancelAllCalled = true
+        }
+    }
+
+    private class FakeKeysApi : KeysApi {
+        var getKeysResult: Response<GetKeysResponseDto>? = null
+        var lastPutRequest: PutKeysRequestDto? = null
+        var putKeysResult: Response<PutKeysResponseDto> = Response.success(
+            PutKeysResponseDto(keyVersion = 1, status = "created")
+        )
+
+        override suspend fun getKeys(): Response<GetKeysResponseDto> {
+            return getKeysResult ?: Response.success(GetKeysResponseDto(exists = false))
+        }
+
+        override suspend fun putKeys(request: PutKeysRequestDto): Response<PutKeysResponseDto> {
+            lastPutRequest = request
+            return putKeysResult
         }
     }
 

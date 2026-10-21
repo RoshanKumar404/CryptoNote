@@ -1,9 +1,13 @@
 package com.example.cryptnote.data.repository
 
+import com.example.cryptnote.data.local.db.CryptNoteDatabase
 import com.example.cryptnote.data.remote.api.AuthApi
+import com.example.cryptnote.data.remote.api.KeysApi
 import com.example.cryptnote.data.remote.model.AuthErrorResponseDto
 import com.example.cryptnote.data.remote.model.LoginRequestDto
+import com.example.cryptnote.data.remote.model.PutKeysRequestDto
 import com.example.cryptnote.data.remote.model.RegisterRequestDto
+import com.example.cryptnote.security.KeyLifecycleManager
 import com.example.cryptnote.security.KeySessionManager
 import com.example.cryptnote.security.KeyStorageManager
 import com.example.cryptnote.security.token.AuthEventBus
@@ -16,9 +20,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import retrofit2.Response
 import java.io.IOException
+import java.security.MessageDigest
+import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -47,7 +56,10 @@ class AuthRepositoryImpl @Inject constructor(
     private val cryptoManager: com.example.cryptnote.security.CryptoManager,
     private val syncScheduler: SyncScheduler,
     private val authEventBus: AuthEventBus,
-    private val json: Json
+    private val json: Json,
+    private val database: CryptNoteDatabase? = null,
+    private val keysApi: KeysApi? = null,
+    private val keyLifecycleManager: KeyLifecycleManager? = null
 ) : AuthRepository {
 
     private val _authState = MutableStateFlow<AuthState>(
@@ -83,17 +95,63 @@ class AuthRepositoryImpl @Inject constructor(
 
     private fun deriveDeterministicUserSalt(email: String): ByteArray {
         val normalized = email.trim().lowercase()
-        return java.security.MessageDigest.getInstance("SHA-256")
+        return MessageDigest.getInstance("SHA-256")
             .digest("CryptoNote:v1:user-salt:$normalized".toByteArray(Charsets.UTF_8))
             .copyOf(16)
     }
 
+    private fun computeKcv(masterKey: ByteArray): ByteArray {
+        val digest = MessageDigest.getInstance("SHA-256")
+        digest.update("cryptnote/kcv/v1".toByteArray(Charsets.UTF_8))
+        digest.update(masterKey)
+        return digest.digest().copyOf(8)
+    }
+
+    private suspend fun backupKeysToServer(salt: ByteArray, currentKeyVersion: Int? = null) {
+        val api = keysApi ?: return
+        val storedWrappedKey = keyStorageManager.getWrappedKey() ?: return
+        val storedIv = keyStorageManager.getWrapperIv() ?: return
+        val storedKcv = keyStorageManager.getKcv()
+
+        val combinedWrapped = storedIv + storedWrappedKey
+        val passWrappedMkBase64 = Base64.getEncoder().encodeToString(combinedWrapped)
+        val passSaltBase64 = Base64.getEncoder().encodeToString(salt)
+        val kcvBase64 = storedKcv?.let { Base64.getEncoder().encodeToString(it) }
+
+        val kdfParams = buildJsonObject {
+            put("algorithm", JsonPrimitive("Argon2id"))
+            put("iterations", JsonPrimitive(3))
+            put("memory", JsonPrimitive(65536))
+            put("parallelism", JsonPrimitive(1))
+        }
+
+        try {
+            api.putKeys(
+                PutKeysRequestDto(
+                    passWrappedMk = passWrappedMkBase64,
+                    passSalt = passSaltBase64,
+                    kdfParams = kdfParams,
+                    recoveryWrappedMk = passWrappedMkBase64,
+                    kcv = kcvBase64,
+                    currentKeyVersion = currentKeyVersion
+                )
+            )
+        } catch (_: Exception) {
+            // Best effort; key backup network errors do not block local usage
+        }
+    }
+
     override suspend fun register(email: String, passphrase: CharArray): Result<Unit> =
-        kotlinx.coroutines.withContext(Dispatchers.Default) {
+        withContext(Dispatchers.Default) {
             val normalizedEmail = email.trim().lowercase()
             _authState.value = AuthState.Loading
 
             try {
+                // Ensure no previous user's data remains in local database
+                withContext(Dispatchers.IO) {
+                    database?.clearAllTables()
+                }
+
                 val userSalt = deriveDeterministicUserSalt(normalizedEmail)
 
                 // 1. Initialize local cryptographic vault with deterministic user salt
@@ -129,30 +187,47 @@ class AuthRepositoryImpl @Inject constructor(
                         email = body.user.email
                     )
 
-                    // Trigger immediate initial synchronization
+                    // 4. Back up wrapped master key and KCV to server (NV-BE-1, NV-FE-2)
+                    backupKeysToServer(userSalt)
+
+                    // 5. Trigger immediate initial synchronization
                     syncScheduler.scheduleImmediate()
 
                     Result.success(Unit)
                 } else {
                     keyStorageManager.clear()
                     keySessionManager.lock()
+                    withContext(Dispatchers.IO) {
+                        database?.clearAllTables()
+                    }
                     _authState.value = AuthState.Unauthenticated
                     Result.failure(extractErrorMessage(response))
                 }
             } catch (e: Exception) {
                 keyStorageManager.clear()
                 keySessionManager.lock()
+                withContext(Dispatchers.IO) {
+                    database?.clearAllTables()
+                }
                 _authState.value = AuthState.Unauthenticated
                 Result.failure(mapException(e))
             }
         }
 
     override suspend fun login(email: String, passphrase: CharArray): Result<Unit> =
-        kotlinx.coroutines.withContext(Dispatchers.Default) {
+        withContext(Dispatchers.Default) {
             val normalizedEmail = email.trim().lowercase()
             _authState.value = AuthState.Loading
 
             try {
+                // Wipe local DB if another account was previously active on this device
+                val previousEmail = tokenStorageManager.getUserEmail()
+                if (previousEmail != null && !previousEmail.equals(normalizedEmail, ignoreCase = true)) {
+                    withContext(Dispatchers.IO) {
+                        database?.clearAllTables()
+                    }
+                }
+
                 val userSalt = deriveDeterministicUserSalt(normalizedEmail)
                 val masterKey = cryptoManager.deriveMasterKey(passphrase, userSalt)
                 val derived = cryptoManager.splitMasterKey(masterKey)
@@ -167,7 +242,7 @@ class AuthRepositoryImpl @Inject constructor(
                 // Fallback attempt: if backend returns 401 and device has an older random salt stored locally, try it
                 if (!response.isSuccessful && keyStorageManager.isSetup()) {
                     val localSalt = keyStorageManager.getSalt()
-                    if (localSalt != null && !java.security.MessageDigest.isEqual(localSalt, userSalt)) {
+                    if (localSalt != null && !MessageDigest.isEqual(localSalt, userSalt)) {
                         val fallbackMasterKey = cryptoManager.deriveMasterKey(passphrase, localSalt)
                         val fallbackDerived = cryptoManager.splitMasterKey(fallbackMasterKey)
                         val fallbackAuthHex = fallbackDerived.authKey.toHex()
@@ -188,15 +263,61 @@ class AuthRepositoryImpl @Inject constructor(
                 if (response.isSuccessful && response.body() != null) {
                     val body = response.body()!!
 
-                    // Initialize Keystore-wrapped vault with the verified master key
-                    keySessionManager.initializeWithMasterKey(activeMasterKey, activeSalt)
-
+                    // Save session tokens immediately so subsequent authenticated calls succeed
                     tokenStorageManager.saveSession(
                         accessToken = body.accessToken,
                         refreshToken = body.refreshToken,
                         userId = body.user.id,
                         email = body.user.email
                     )
+
+                    // Key Verification via KeysApi if present on server (NV-BE-1, NV-FE-2)
+                    var keyCheckFailed = false
+                    try {
+                        val keysResp = keysApi?.getKeys()
+                        if (keysResp != null && keysResp.isSuccessful && keysResp.body() != null) {
+                            val keysBody = keysResp.body()!!
+                            if (keysBody.exists && keysBody.latest != null) {
+                                val remoteKcvBase64 = keysBody.latest.kcv
+                                if (!remoteKcvBase64.isNullOrBlank()) {
+                                    val remoteKcv = Base64.getDecoder().decode(remoteKcvBase64)
+                                    val computedKcv = keyLifecycleManager?.computeKcv(activeMasterKey)
+                                        ?: computeKcv(activeMasterKey)
+
+                                    if (!MessageDigest.isEqual(computedKcv, remoteKcv)) {
+                                        keyCheckFailed = true
+                                    }
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {
+                        // Network error during key verification - proceed with offline vault initialization
+                    }
+
+                    if (keyCheckFailed) {
+                        activeMasterKey.fill(0)
+                        tokenStorageManager.clearSession()
+                        keyStorageManager.clear()
+                        keySessionManager.lock()
+                        withContext(Dispatchers.IO) {
+                            database?.clearAllTables()
+                        }
+                        _authState.value = AuthState.Unauthenticated
+                        return@withContext Result.failure(
+                            IllegalArgumentException("Wrong master passphrase (key check verification failed).")
+                        )
+                    }
+
+                    // Initialize Keystore-wrapped vault with the verified master key
+                    keySessionManager.initializeWithMasterKey(activeMasterKey, activeSalt)
+
+                    // If server doesn't have keys yet, back them up now
+                    try {
+                        val keysResp = keysApi?.getKeys()
+                        if (keysResp != null && keysResp.isSuccessful && keysResp.body()?.exists == false) {
+                            backupKeysToServer(activeSalt)
+                        }
+                    } catch (_: Exception) {}
 
                     _authState.value = AuthState.Authenticated(
                         userId = body.user.id,
@@ -219,11 +340,16 @@ class AuthRepositoryImpl @Inject constructor(
         }
 
     override suspend fun resetAccount(email: String, passphrase: CharArray): Result<Unit> =
-        kotlinx.coroutines.withContext(Dispatchers.Default) {
+        withContext(Dispatchers.Default) {
             val normalizedEmail = email.trim().lowercase()
             _authState.value = AuthState.Loading
 
             try {
+                // Wipe local DB completely on account reset
+                withContext(Dispatchers.IO) {
+                    database?.clearAllTables()
+                }
+
                 val userSalt = deriveDeterministicUserSalt(normalizedEmail)
                 val masterKey = cryptoManager.deriveMasterKey(passphrase, userSalt)
                 val derived = cryptoManager.splitMasterKey(masterKey)
@@ -244,6 +370,8 @@ class AuthRepositoryImpl @Inject constructor(
                         userId = body.user.id,
                         email = body.user.email
                     )
+
+                    backupKeysToServer(userSalt)
 
                     _authState.value = AuthState.Authenticated(
                         userId = body.user.id,
@@ -268,6 +396,9 @@ class AuthRepositoryImpl @Inject constructor(
         keyStorageManager.clear()
         keySessionManager.lock()
         syncScheduler.cancelAll()
+        withContext(Dispatchers.IO) {
+            database?.clearAllTables()
+        }
         _authState.value = AuthState.Unauthenticated
     }
 

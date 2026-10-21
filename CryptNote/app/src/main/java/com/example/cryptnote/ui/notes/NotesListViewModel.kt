@@ -146,13 +146,8 @@ class NotesListViewModel @Inject constructor(
             viewModelScope.launch {
                 var prevOnline: Boolean? = null
                 observer.isOnline.collect { isOnline ->
-                    if (prevOnline != null && prevOnline != isOnline) {
-                        if (isOnline) {
-                            _eventFlow.emit(NotesListEvent.ShowMessage("Back online — syncing notes"))
-                            refreshNotes()
-                        } else {
-                            _eventFlow.emit(NotesListEvent.ShowMessage("You are offline — notes saved locally"))
-                        }
+                    if (prevOnline != null && prevOnline != isOnline && isOnline) {
+                        refreshNotes()
                     }
                     prevOnline = isOnline
                 }

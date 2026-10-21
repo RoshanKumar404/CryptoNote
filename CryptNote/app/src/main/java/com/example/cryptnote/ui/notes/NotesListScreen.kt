@@ -138,6 +138,7 @@ import com.example.cryptnote.ui.common.buildHighlightedString
 import com.example.cryptnote.ui.editor.NoteEditorScreen
 import com.example.cryptnote.ui.editor.NoteEditorViewModel
 import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -290,16 +291,42 @@ fun NotesListScreen(
         )
     }
 
+    val onlineColor = Color(0xFF4CAF50)
+    val offlineColor = MaterialTheme.colorScheme.error
+    var borderActiveColor by remember { mutableStateOf(Color.Transparent) }
+
+    LaunchedEffect(uiState.isOnline) {
+        val targetColor = if (uiState.isOnline) onlineColor else offlineColor
+        val msg = if (uiState.isOnline) "Online — notes synced" else "Offline — working locally"
+
+        snackbarHostState.currentSnackbarData?.dismiss()
+        launch {
+            snackbarHostState.showSnackbar(
+                message = msg,
+                duration = SnackbarDuration.Short
+            )
+        }
+
+        // Show border for 0.5 sec, then turn off
+        borderActiveColor = targetColor
+        delay(500)
+        borderActiveColor = Color.Transparent
+    }
+
     val animatedBorderColor by animateColorAsState(
-        targetValue = if (uiState.isOnline) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error,
-        animationSpec = tween(durationMillis = 250),
+        targetValue = borderActiveColor,
+        animationSpec = tween(durationMillis = 300),
         label = "SystemOnlineBorderAnimation"
     )
 
     Scaffold(
         modifier = modifier
             .fillMaxSize()
-            .border(width = 2.5.dp, color = animatedBorderColor),
+            .then(
+                if (animatedBorderColor != Color.Transparent) {
+                    Modifier.border(width = 2.5.dp, color = animatedBorderColor)
+                } else Modifier
+            ),
         topBar = {
             Column {
                 TopAppBar(
@@ -434,12 +461,14 @@ fun NotesListScreen(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(3.5.dp)
-                    .background(animatedBorderColor)
-            )
+            if (animatedBorderColor != Color.Transparent) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.5.dp)
+                        .background(animatedBorderColor)
+                )
+            }
         }
     },
         bottomBar = {
@@ -613,7 +642,11 @@ private fun NotesListContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .border(width = 2.5.dp, color = animatedBorderColor)
+            .then(
+                if (animatedBorderColor != Color.Transparent) {
+                    Modifier.border(width = 2.5.dp, color = animatedBorderColor)
+                } else Modifier
+            )
     ) {
         // Offline Warning Banner
         AnimatedVisibility(

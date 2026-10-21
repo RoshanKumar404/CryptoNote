@@ -113,9 +113,31 @@ class SyncWorker @AssistedInject constructor(
                         formatVersion = payload.formatVersion
                         keyId = payload.keyId
                         checksum = payload.checksum
+
+                        // Extract ciphertext & nonce from envelope if missing or incomplete
+                        if (!envelope.isNullOrBlank()) {
+                            val envBytes = try {
+                                Base64.getUrlDecoder().decode(envelope)
+                            } catch (_: Exception) {
+                                try { Base64.getDecoder().decode(envelope) } catch (_: Exception) { null }
+                            }
+                            if (envBytes != null && envBytes.size >= 22) {
+                                ciphertext = Base64.getEncoder().encodeToString(envBytes)
+                                nonce = Base64.getEncoder().encodeToString(envBytes.copyOfRange(10, 22))
+                            }
+                        }
                     } catch (_: Exception) {
                         ciphertext = entry.payload
-                        nonce = ""
+                        nonce = Base64.getEncoder().encodeToString(ByteArray(12))
+                    }
+                }
+
+                if (entry.type != "delete") {
+                    if (ciphertext.isNullOrBlank()) {
+                        ciphertext = "e30="
+                    }
+                    if (nonce.isNullOrBlank()) {
+                        nonce = Base64.getEncoder().encodeToString(ByteArray(12))
                     }
                 }
 
@@ -241,22 +263,6 @@ class SyncWorker @AssistedInject constructor(
                             noteDao.updateSyncStatus(change.id, "synced")
                         }
                     } else {
-                        val envelopeBytes = change.envelope?.let {
-                            try {
-                                Base64.getUrlDecoder().decode(it)
-                            } catch (_: Exception) {
-                                try { Base64.getDecoder().decode(it) } catch (_: Exception) { null }
-                            }
-                        }
-
-                        val keyIdBytes = change.keyId?.let {
-                            try {
-                                Base64.getUrlDecoder().decode(it)
-                            } catch (_: Exception) {
-                                try { Base64.getDecoder().decode(it) } catch (_: Exception) { null }
-                            }
-                        }
-
                         val checksumBytes = change.checksum?.let {
                             try {
                                 if (it.length == 64) {
@@ -267,25 +273,59 @@ class SyncWorker @AssistedInject constructor(
                             } catch (_: Exception) { null }
                         }
 
-                        val ciphertextBytes = change.ciphertext?.let {
-                            try { Base64.getDecoder().decode(it) } catch (_: Exception) { it.toByteArray(Charsets.UTF_8) }
+                        val rawCiphertextBytes = change.ciphertext?.let {
+                            try {
+                                Base64.getDecoder().decode(it)
+                            } catch (_: Exception) {
+                                try { Base64.getUrlDecoder().decode(it) } catch (_: Exception) { it.toByteArray(Charsets.UTF_8) }
+                            }
                         } ?: ByteArray(0)
 
-                        val nonceBytes = change.nonce?.let {
-                            try { Base64.getDecoder().decode(it) } catch (_: Exception) { ByteArray(0) }
-                        } ?: ByteArray(0)
+                        val isFullEnvelope = rawCiphertextBytes.size >= 38 && rawCiphertextBytes[0].toInt() == 1 && rawCiphertextBytes[1].toInt() == 1
+
+                        val envelopeBytes: ByteArray?
+                        val keyIdBytes: ByteArray?
+                        val nonceBytes: ByteArray
+                        val ciphertextBytes: ByteArray
+                        val formatVersion: Int
+
+                        if (isFullEnvelope) {
+                            envelopeBytes = rawCiphertextBytes
+                            keyIdBytes = rawCiphertextBytes.copyOfRange(2, 10)
+                            nonceBytes = rawCiphertextBytes.copyOfRange(10, 22)
+                            ciphertextBytes = rawCiphertextBytes.copyOfRange(22, rawCiphertextBytes.size)
+                            formatVersion = 1
+                        } else {
+                            envelopeBytes = change.envelope?.let {
+                                try { Base64.getUrlDecoder().decode(it) } catch (_: Exception) { try { Base64.getDecoder().decode(it) } catch (_: Exception) { null } }
+                            }
+                            keyIdBytes = change.keyId?.let {
+                                try { Base64.getUrlDecoder().decode(it) } catch (_: Exception) { try { Base64.getDecoder().decode(it) } catch (_: Exception) { null } }
+                            }
+                            nonceBytes = change.nonce?.let {
+                                try { Base64.getDecoder().decode(it) } catch (_: Exception) { ByteArray(0) }
+                            } ?: ByteArray(0)
+                            ciphertextBytes = rawCiphertextBytes
+                            formatVersion = change.formatVersion
+                        }
 
                         val existing = noteDao.getNoteById(change.id)
                         val conflictGroupId = existing?.conflictGroupId
                         val isVault = existing?.isVault ?: false
                         val syncStatus = if (conflictGroupId != null) "conflict" else "synced"
 
+                        val finalEnvelopeBytes = if (envelopeBytes == null && formatVersion == 1 && keyIdBytes != null && keyIdBytes.size == 8 && ciphertextBytes.isNotEmpty() && nonceBytes.size == 12) {
+                            byteArrayOf(1, 1) + keyIdBytes + nonceBytes + ciphertextBytes
+                        } else {
+                            envelopeBytes
+                        }
+
                         val noteEntity = NoteEntity(
                             id = change.id,
                             ciphertext = ciphertextBytes,
                             nonce = nonceBytes,
-                            envelope = envelopeBytes,
-                            formatVersion = change.formatVersion,
+                            envelope = finalEnvelopeBytes,
+                            formatVersion = formatVersion,
                             keyId = keyIdBytes,
                             checksum = checksumBytes,
                             isVault = isVault,

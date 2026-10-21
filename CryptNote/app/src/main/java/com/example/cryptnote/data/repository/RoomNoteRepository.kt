@@ -227,10 +227,14 @@ class RoomNoteRepository @Inject constructor(
 
             val checksum = MessageDigest.getInstance("SHA-256").digest(envelope)
 
+            val envelopeB64 = Base64.getEncoder().encodeToString(envelope)
+            val nonceBytes = if (envelope.size >= 22) envelope.copyOfRange(10, 22) else ByteArray(0)
+            val cipherBytes = if (envelope.size >= 22) envelope.copyOfRange(22, envelope.size) else ByteArray(0)
+
             val noteEntity = NoteEntity(
                 id = note.id,
-                ciphertext = ByteArray(0),
-                nonce = ByteArray(0),
+                ciphertext = cipherBytes,
+                nonce = nonceBytes,
                 version = targetVersion,
                 updatedAt = now,
                 deleted = false,
@@ -244,6 +248,8 @@ class RoomNoteRepository @Inject constructor(
             )
             noteDao.insertNote(noteEntity)
 
+            val nonceB64 = Base64.getEncoder().encodeToString(nonceBytes)
+
             val envelopeB64Url = Base64.getUrlEncoder().withoutPadding().encodeToString(envelope)
             val keyIdB64Url = Base64.getUrlEncoder().withoutPadding().encodeToString(keyId)
             val checksumB64Url = Base64.getUrlEncoder().withoutPadding().encodeToString(checksum)
@@ -251,6 +257,8 @@ class RoomNoteRepository @Inject constructor(
             val payloadJson = Json.encodeToString(
                 OutboxPayloadDto.serializer(),
                 OutboxPayloadDto(
+                    ciphertext = envelopeB64,
+                    nonce = nonceB64,
                     envelope = envelopeB64Url,
                     formatVersion = EnvelopeV1.FORMAT,
                     keyId = keyIdB64Url,
@@ -393,6 +401,11 @@ class RoomNoteRepository @Inject constructor(
             )
             noteDao.insertNote(updatedEntity)
 
+            val envelopeB64 = Base64.getEncoder().encodeToString(envelope)
+            val nonceBytes = if (envelope.size >= 22) envelope.copyOfRange(10, 22) else ByteArray(0)
+            val cipherBytes = if (envelope.size >= 22) envelope.copyOfRange(22, envelope.size) else ByteArray(0)
+            val nonceB64 = Base64.getEncoder().encodeToString(nonceBytes)
+
             val envelopeB64Url = Base64.getUrlEncoder().withoutPadding().encodeToString(envelope)
             val keyIdB64Url = Base64.getUrlEncoder().withoutPadding().encodeToString(keyId)
             val checksumB64Url = Base64.getUrlEncoder().withoutPadding().encodeToString(checksum)
@@ -400,6 +413,8 @@ class RoomNoteRepository @Inject constructor(
             val payloadJson = Json.encodeToString(
                 OutboxPayloadDto.serializer(),
                 OutboxPayloadDto(
+                    ciphertext = envelopeB64,
+                    nonce = nonceB64,
                     envelope = envelopeB64Url,
                     formatVersion = EnvelopeV1.FORMAT,
                     keyId = keyIdB64Url,
@@ -488,6 +503,11 @@ class RoomNoteRepository @Inject constructor(
                     )
                     noteDao.insertNote(migratedEntity)
 
+                    val envelopeB64 = Base64.getEncoder().encodeToString(envelope)
+                    val nonceBytes = if (envelope.size >= 22) envelope.copyOfRange(10, 22) else ByteArray(0)
+                    val cipherBytes = if (envelope.size >= 22) envelope.copyOfRange(22, envelope.size) else ByteArray(0)
+                    val nonceB64 = Base64.getEncoder().encodeToString(nonceBytes)
+
                     val envelopeB64Url = Base64.getUrlEncoder().withoutPadding().encodeToString(envelope)
                     val keyIdB64Url = Base64.getUrlEncoder().withoutPadding().encodeToString(keyId)
                     val checksumB64Url = Base64.getUrlEncoder().withoutPadding().encodeToString(checksum)
@@ -495,6 +515,8 @@ class RoomNoteRepository @Inject constructor(
                     val payloadJson = Json.encodeToString(
                         OutboxPayloadDto.serializer(),
                         OutboxPayloadDto(
+                            ciphertext = envelopeB64,
+                            nonce = nonceB64,
                             envelope = envelopeB64Url,
                             formatVersion = EnvelopeV1.FORMAT,
                             keyId = keyIdB64Url,
