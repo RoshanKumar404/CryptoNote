@@ -11,8 +11,10 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -299,7 +301,8 @@ fun NotesListScreen(
             .fillMaxSize()
             .border(width = 2.5.dp, color = animatedBorderColor),
         topBar = {
-            TopAppBar(
+            Column {
+                TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -431,7 +434,14 @@ fun NotesListScreen(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
-        },
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.5.dp)
+                    .background(animatedBorderColor)
+            )
+        }
+    },
         bottomBar = {
             NavigationBar(
                 containerColor = MaterialTheme.colorScheme.surface,
@@ -505,7 +515,8 @@ fun NotesListScreen(
                             }
                         },
                         onSyncStatusClick = { note -> selectedSyncDetailNote = note },
-                        onCreateNewNote = { tabletSelectedNoteId = "new" }
+                        onCreateNewNote = { tabletSelectedNoteId = "new" },
+                        animatedBorderColor = animatedBorderColor
                     )
                 }
 
@@ -580,6 +591,7 @@ fun NotesListScreen(
                 },
                 onSyncStatusClick = { note -> selectedSyncDetailNote = note },
                 onCreateNewNote = { onNavigateToEditor("new") },
+                animatedBorderColor = animatedBorderColor,
                 modifier = Modifier.padding(innerPadding)
             )
         }
@@ -595,11 +607,47 @@ private fun NotesListContent(
     onNoteClick: (Note) -> Unit,
     onSyncStatusClick: (Note) -> Unit,
     onCreateNewNote: () -> Unit,
+    animatedBorderColor: Color = Color(0xFF4CAF50),
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier.fillMaxSize()
+        modifier = modifier
+            .fillMaxSize()
+            .border(width = 2.5.dp, color = animatedBorderColor)
     ) {
+        // Offline Warning Banner
+        AnimatedVisibility(
+            visible = !uiState.isOnline,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
+            Surface(
+                color = MaterialTheme.colorScheme.errorContainer,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Offline indicator",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "You are offline — notes are saved locally and will sync when reconnected.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+        }
+
         // Conflict Warning Banner if conflicts exist
         AnimatedVisibility(
             visible = uiState.conflictCount > 0,

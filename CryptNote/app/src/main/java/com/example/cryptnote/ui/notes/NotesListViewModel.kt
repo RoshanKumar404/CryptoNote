@@ -100,7 +100,7 @@ class NotesListViewModel @Inject constructor(
     private val _isRefreshing = MutableStateFlow(false)
     private var lastDeletedNote: Note? = null
 
-    private val _eventFlow = MutableSharedFlow<NotesListEvent>()
+    private val _eventFlow = MutableSharedFlow<NotesListEvent>(extraBufferCapacity = 10)
     val eventFlow: SharedFlow<NotesListEvent> = _eventFlow.asSharedFlow()
 
     private val _debouncedQuery = _searchQuery.debounce { query ->
