@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.example.cryptnote.data.local.db.CryptNoteDatabase
 import com.example.cryptnote.data.local.db.dao.NoteDao
 import com.example.cryptnote.data.local.db.dao.OutboxDao
+import com.example.cryptnote.data.local.db.dao.QuarantineDao
 import com.example.cryptnote.data.local.db.dao.SyncStateDao
 import dagger.Module
 import dagger.Provides
@@ -27,6 +28,7 @@ object DatabaseModule {
             CryptNoteDatabase::class.java,
             CryptNoteDatabase.DATABASE_NAME
         )
+            .addMigrations(CryptNoteDatabase.MIGRATION_1_2)
             .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
     }
@@ -47,5 +49,11 @@ object DatabaseModule {
     @Singleton
     fun provideSyncStateDao(database: CryptNoteDatabase): SyncStateDao {
         return database.syncStateDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideQuarantineDao(database: CryptNoteDatabase): QuarantineDao {
+        return database.quarantineDao()
     }
 }

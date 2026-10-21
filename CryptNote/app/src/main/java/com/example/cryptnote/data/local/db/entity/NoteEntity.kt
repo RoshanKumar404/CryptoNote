@@ -24,10 +24,10 @@ data class NoteEntity(
     val id: String,
 
     @ColumnInfo(typeAffinity = ColumnInfo.BLOB)
-    val ciphertext: ByteArray,
+    val ciphertext: ByteArray = ByteArray(0),
 
     @ColumnInfo(typeAffinity = ColumnInfo.BLOB)
-    val nonce: ByteArray,
+    val nonce: ByteArray = ByteArray(0),
 
     val version: Int = 1,
 
@@ -40,7 +40,22 @@ data class NoteEntity(
     val syncStatus: String = "pending",
 
     @ColumnInfo(name = "conflict_group_id")
-    val conflictGroupId: String? = null
+    val conflictGroupId: String? = null,
+
+    @ColumnInfo(typeAffinity = ColumnInfo.BLOB)
+    val envelope: ByteArray? = null,
+
+    @ColumnInfo(name = "format_version")
+    val formatVersion: Int = 0,
+
+    @ColumnInfo(name = "key_id", typeAffinity = ColumnInfo.BLOB)
+    val keyId: ByteArray? = null,
+
+    @ColumnInfo(typeAffinity = ColumnInfo.BLOB)
+    val checksum: ByteArray? = null,
+
+    @ColumnInfo(name = "is_vault")
+    val isVault: Boolean = false
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -56,6 +71,20 @@ data class NoteEntity(
         if (deleted != other.deleted) return false
         if (syncStatus != other.syncStatus) return false
         if (conflictGroupId != other.conflictGroupId) return false
+        if (envelope != null) {
+            if (other.envelope == null) return false
+            if (!envelope.contentEquals(other.envelope)) return false
+        } else if (other.envelope != null) return false
+        if (formatVersion != other.formatVersion) return false
+        if (keyId != null) {
+            if (other.keyId == null) return false
+            if (!keyId.contentEquals(other.keyId)) return false
+        } else if (other.keyId != null) return false
+        if (checksum != null) {
+            if (other.checksum == null) return false
+            if (!checksum.contentEquals(other.checksum)) return false
+        } else if (other.checksum != null) return false
+        if (isVault != other.isVault) return false
 
         return true
     }
@@ -69,6 +98,11 @@ data class NoteEntity(
         result = 31 * result + deleted.hashCode()
         result = 31 * result + syncStatus.hashCode()
         result = 31 * result + (conflictGroupId?.hashCode() ?: 0)
+        result = 31 * result + (envelope?.contentHashCode() ?: 0)
+        result = 31 * result + formatVersion
+        result = 31 * result + (keyId?.contentHashCode() ?: 0)
+        result = 31 * result + (checksum?.contentHashCode() ?: 0)
+        result = 31 * result + isVault.hashCode()
         return result
     }
 }

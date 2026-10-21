@@ -18,10 +18,22 @@ import kotlinx.coroutines.flow.Flow
 interface NoteDao {
 
     /**
-     * Observe all non-deleted notes, ordered by most recently updated first.
+     * Observe all non-deleted non-vault notes, ordered by most recently updated first.
      */
-    @Query("SELECT * FROM notes WHERE deleted = 0 ORDER BY updated_at DESC")
+    @Query("SELECT * FROM notes WHERE deleted = 0 AND is_vault = 0 ORDER BY updated_at DESC")
     fun observeAllNotes(): Flow<List<NoteEntity>>
+
+    /**
+     * Observe all non-deleted vault notes, ordered by most recently updated first.
+     */
+    @Query("SELECT * FROM notes WHERE deleted = 0 AND is_vault = 1 ORDER BY updated_at DESC")
+    fun observeVaultNotes(): Flow<List<NoteEntity>>
+
+    /**
+     * Update the is_vault flag of a specific note.
+     */
+    @Query("UPDATE notes SET is_vault = :isVault WHERE id = :noteId")
+    suspend fun updateVaultFlag(noteId: String, isVault: Boolean)
 
     /**
      * Observe a single note by its ID.

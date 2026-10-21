@@ -23,7 +23,17 @@ data class PushOpDto(
 
     val ciphertext: String? = null,
 
-    val nonce: String? = null
+    val nonce: String? = null,
+
+    val envelope: String? = null,
+
+    @SerialName("format_version")
+    val formatVersion: Int? = null,
+
+    @SerialName("key_id")
+    val keyId: String? = null,
+
+    val checksum: String? = null
 )
 
 /**
@@ -75,6 +85,16 @@ data class PullChangeDto(
 
     val nonce: String? = null,
 
+    val envelope: String? = null,
+
+    @SerialName("format_version")
+    val formatVersion: Int = 0,
+
+    @SerialName("key_id")
+    val keyId: String? = null,
+
+    val checksum: String? = null,
+
     val version: Int,
 
     val deleted: Boolean,
@@ -105,6 +125,10 @@ data class PullResponseDto(
  */
 @Serializable
 data class OutboxPayloadDto(
-    val ciphertext: String,
-    val nonce: String
+    val ciphertext: String? = null,
+    val nonce: String? = null,
+    val envelope: String? = null,
+    val formatVersion: Int = 1,
+    val keyId: String? = null,
+    val checksum: String? = null
 )
