@@ -45,11 +45,14 @@ class KeySessionManagerTest {
 
         val encKey = keySessionManager.getEncryptionKey()
         val authKey = keySessionManager.getAuthKey()
+        val keyId = keySessionManager.getKeyId()
 
         assertNotNull(encKey)
         assertNotNull(authKey)
+        assertNotNull(keyId)
         assertEquals(32, encKey.size)
         assertEquals(32, authKey.size)
+        assertEquals(8, keyId.size)
     }
 
     @Test

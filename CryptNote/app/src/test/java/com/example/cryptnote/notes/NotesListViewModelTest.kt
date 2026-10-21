@@ -242,6 +242,72 @@ class NotesListViewModelTest {
         job.cancel()
     }
 
+    @Test
+    fun `selectTab switches between NOTES and VAULT and leaving vault locks it`() = runTest {
+        val job = launch { viewModel.uiState.collect {} }
+        advanceTimeBy(350)
+        advanceUntilIdle()
+
+        // Default tab is NOTES (NV-FE-5)
+        assertEquals(com.example.cryptnote.ui.notes.NotesTab.NOTES, viewModel.uiState.value.currentTab)
+
+        // Select VAULT
+        viewModel.selectTab(com.example.cryptnote.ui.notes.NotesTab.VAULT)
+        advanceUntilIdle()
+        assertEquals(com.example.cryptnote.ui.notes.NotesTab.VAULT, viewModel.uiState.value.currentTab)
+
+        // Leaving VAULT route (switching to NOTES) locks vault (NV-FE-6)
+        viewModel.selectTab(com.example.cryptnote.ui.notes.NotesTab.NOTES)
+        advanceUntilIdle()
+        assertEquals(com.example.cryptnote.ui.notes.NotesTab.NOTES, viewModel.uiState.value.currentTab)
+        assertTrue(viewModel.uiState.value.isVaultLocked)
+
+        job.cancel()
+    }
+
+    @Test
+    fun `moveToVault calls repository with correct parameters`() = runTest {
+        viewModel.moveToVault("test-id-1", toVault = true)
+        advanceUntilIdle()
+
+        assertEquals("test-id-1", fakeNoteRepository.lastMovedToVaultId)
+        assertEquals(true, fakeNoteRepository.lastMovedToVaultFlag)
+
+        viewModel.moveToVault("test-id-1", toVault = false)
+        advanceUntilIdle()
+
+        assertEquals("test-id-1", fakeNoteRepository.lastMovedToVaultId)
+        assertEquals(false, fakeNoteRepository.lastMovedToVaultFlag)
+    }
+
+    @Test
+    fun `quarantineNote calls repository and preserves reason`() = runTest {
+        viewModel.quarantineNote("damaged-note-id", "Damaged checksum")
+        advanceUntilIdle()
+
+        assertEquals("damaged-note-id", fakeNoteRepository.lastQuarantinedId)
+        assertEquals("Damaged checksum", fakeNoteRepository.lastQuarantinedReason)
+    }
+
+    @Test
+    fun `onDecryptionErrorNoteSelected and onDismissDecryptionErrorDialog updates uiState`() = runTest {
+        val job = launch { viewModel.uiState.collect {} }
+        advanceTimeBy(350)
+        advanceUntilIdle()
+
+        val damagedNote = createNote(id = "err-1", title = "⚠️ Damaged Note", body = "This note is damaged on this device.")
+        viewModel.onDecryptionErrorNoteSelected(damagedNote)
+        advanceUntilIdle()
+
+        assertEquals("err-1", viewModel.uiState.value.selectedDecryptionErrorNote?.id)
+
+        viewModel.onDismissDecryptionErrorDialog()
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.selectedDecryptionErrorNote)
+        job.cancel()
+    }
+
     private fun createNote(
         id: String,
         title: String,
@@ -267,10 +333,15 @@ class NotesListViewModelTest {
     private class FakeNoteRepository : NoteRepository {
         val notesFlow = MutableStateFlow<List<Note>>(emptyList())
         val conflictPairsFlow = MutableStateFlow<List<ConflictPair>>(emptyList())
+        val vaultNotesFlow = MutableStateFlow<List<Note>>(emptyList())
         var lastDeletedNoteId: String? = null
         var lastSavedNote: Note? = null
         var lastResolvedGroupId: String? = null
         var lastResolvedAction: ConflictResolutionAction? = null
+        var lastMovedToVaultId: String? = null
+        var lastMovedToVaultFlag: Boolean? = null
+        var lastQuarantinedId: String? = null
+        var lastQuarantinedReason: String? = null
 
         override fun getAllNotes(): Flow<List<Note>> = notesFlow
         override fun getNoteById(id: String): Flow<Note?> = flowOf(notesFlow.value.find { it.id == id })
@@ -278,6 +349,15 @@ class NotesListViewModelTest {
         override suspend fun deleteNote(id: String) { lastDeletedNoteId = id }
         override fun getConflictNotes(): Flow<List<Note>> = flowOf(emptyList())
         override fun getConflictPairs(): Flow<List<ConflictPair>> = conflictPairsFlow
+        override fun getVaultNotes(): Flow<List<Note>> = vaultNotesFlow
+        override suspend fun moveToVault(id: String, toVault: Boolean) {
+            lastMovedToVaultId = id
+            lastMovedToVaultFlag = toVault
+        }
+        override suspend fun quarantineNote(id: String, reason: String) {
+            lastQuarantinedId = id
+            lastQuarantinedReason = reason
+        }
         override suspend fun resolveConflict(
             conflictGroupId: String,
             action: ConflictResolutionAction

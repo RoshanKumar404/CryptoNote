@@ -1,0 +1,8 @@
+{
+  "app_version": "1.0.0",
+  "master_key_hex": "0101010101010101010101010101010101010101010101010101010101010101",
+  "note_id": "12345678-1234-5678-1234-567812345678",
+  "version": 1,
+  "envelope_base64url": "AQE9FY5YynUqUAICAgICAgICAgICArLaCzmQjpK76_hJ5VNudK5VM7MYhvjQu6JKTD5z1fXMwONTQw0TjB2Wp0dD",
+  "expected_plaintext": "Hello CryptoNote Envelope V1"
+}
