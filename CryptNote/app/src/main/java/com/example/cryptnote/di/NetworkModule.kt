@@ -164,4 +164,12 @@ object NetworkModule {
     ): SyncApi {
         return retrofit.create(SyncApi::class.java)
     }
+
+    @Provides
+    @Singleton
+    fun provideKeysApi(
+        retrofit: Retrofit
+    ): com.example.cryptnote.data.remote.api.KeysApi {
+        return retrofit.create(com.example.cryptnote.data.remote.api.KeysApi::class.java)
+    }
 }

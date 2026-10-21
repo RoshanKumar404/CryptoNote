@@ -11,6 +11,7 @@ data class NoteContent(
     val title: String = "",
     val body: String = "",
     val tags: List<String> = emptyList(),
-    val pinned: Boolean = false
+    val pinned: Boolean = false,
+    val isVault: Boolean = false
 )
 

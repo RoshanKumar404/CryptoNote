@@ -24,5 +24,7 @@ data class Note(
     val syncStatus: SyncStatus = SyncStatus.PENDING,
     val conflictGroupId: String? = null,
     val tags: List<String> = emptyList(),
-    val pinned: Boolean = false
+    val pinned: Boolean = false,
+    val isVault: Boolean = false,
+    val ciphertextPreview: String? = null
 )

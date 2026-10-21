@@ -23,6 +23,7 @@ data class NoteEditorUiState(
     val body: String = "",
     val tags: List<String> = emptyList(),
     val isPinned: Boolean = false,
+    val isVault: Boolean = false,
     val isPreviewMode: Boolean = false,
     val lastSavedAt: Long = 0L,
     val isSaving: Boolean = false,
@@ -56,6 +57,7 @@ class NoteEditorViewModel @Inject constructor(
                             body = if (existing.title.startsWith("⚠️ Decryption Error")) "" else existing.body,
                             tags = existing.tags,
                             isPinned = existing.pinned,
+                            isVault = existing.isVault,
                             lastSavedAt = existing.updatedAt,
                             isInitialized = true
                         )
@@ -135,6 +137,7 @@ class NoteEditorViewModel @Inject constructor(
             body = currentState.body.trim(),
             tags = currentState.tags,
             pinned = currentState.isPinned,
+            isVault = currentState.isVault,
             updatedAt = System.currentTimeMillis()
         )
 

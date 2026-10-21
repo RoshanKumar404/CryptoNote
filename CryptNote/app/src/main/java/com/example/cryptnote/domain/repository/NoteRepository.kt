@@ -42,6 +42,22 @@ interface NoteRepository {
     fun getConflictPairs(): Flow<List<com.example.cryptnote.domain.model.ConflictPair>>
 
     /**
+     * Observes notes stored in the encrypted vault (is_vault = 1).
+     */
+    fun getVaultNotes(): Flow<List<Note>>
+
+    /**
+     * Moves a note between standard Notes and the Vault.
+     * Updates isVault in both the local entity and re-encrypts payload via outbox.
+     */
+    suspend fun moveToVault(id: String, toVault: Boolean)
+
+    /**
+     * Moves a damaged/unreadable note to the quarantine table and removes it from active list.
+     */
+    suspend fun quarantineNote(id: String, reason: String)
+
+    /**
      * Resolves a synchronization conflict for notes identified by [conflictGroupId].
      */
     suspend fun resolveConflict(

@@ -99,12 +99,20 @@ class SyncWorker @AssistedInject constructor(
             val pushOps = eligibleEntries.map { entry ->
                 var ciphertext: String? = null
                 var nonce: String? = null
+                var envelope: String? = null
+                var formatVersion: Int? = null
+                var keyId: String? = null
+                var checksum: String? = null
 
                 if (entry.type != "delete" && entry.payload.isNotBlank()) {
                     try {
                         val payload = json.decodeFromString(OutboxPayloadDto.serializer(), entry.payload)
                         ciphertext = payload.ciphertext
                         nonce = payload.nonce
+                        envelope = payload.envelope
+                        formatVersion = payload.formatVersion
+                        keyId = payload.keyId
+                        checksum = payload.checksum
                     } catch (_: Exception) {
                         ciphertext = entry.payload
                         nonce = ""
@@ -118,7 +126,11 @@ class SyncWorker @AssistedInject constructor(
                     baseVersion = entry.baseVersion,
                     version = entry.version,
                     ciphertext = ciphertext,
-                    nonce = nonce
+                    nonce = nonce,
+                    envelope = envelope,
+                    formatVersion = formatVersion,
+                    keyId = keyId,
+                    checksum = checksum
                 )
             }
 
@@ -229,6 +241,32 @@ class SyncWorker @AssistedInject constructor(
                             noteDao.updateSyncStatus(change.id, "synced")
                         }
                     } else {
+                        val envelopeBytes = change.envelope?.let {
+                            try {
+                                Base64.getUrlDecoder().decode(it)
+                            } catch (_: Exception) {
+                                try { Base64.getDecoder().decode(it) } catch (_: Exception) { null }
+                            }
+                        }
+
+                        val keyIdBytes = change.keyId?.let {
+                            try {
+                                Base64.getUrlDecoder().decode(it)
+                            } catch (_: Exception) {
+                                try { Base64.getDecoder().decode(it) } catch (_: Exception) { null }
+                            }
+                        }
+
+                        val checksumBytes = change.checksum?.let {
+                            try {
+                                if (it.length == 64) {
+                                    it.chunked(2).map { b -> b.toInt(16).toByte() }.toByteArray()
+                                } else {
+                                    Base64.getUrlDecoder().decode(it)
+                                }
+                            } catch (_: Exception) { null }
+                        }
+
                         val ciphertextBytes = change.ciphertext?.let {
                             try { Base64.getDecoder().decode(it) } catch (_: Exception) { it.toByteArray(Charsets.UTF_8) }
                         } ?: ByteArray(0)
@@ -239,12 +277,18 @@ class SyncWorker @AssistedInject constructor(
 
                         val existing = noteDao.getNoteById(change.id)
                         val conflictGroupId = existing?.conflictGroupId
+                        val isVault = existing?.isVault ?: false
                         val syncStatus = if (conflictGroupId != null) "conflict" else "synced"
 
                         val noteEntity = NoteEntity(
                             id = change.id,
                             ciphertext = ciphertextBytes,
                             nonce = nonceBytes,
+                            envelope = envelopeBytes,
+                            formatVersion = change.formatVersion,
+                            keyId = keyIdBytes,
+                            checksum = checksumBytes,
+                            isVault = isVault,
                             version = change.version,
                             updatedAt = change.updatedAt,
                             deleted = false,

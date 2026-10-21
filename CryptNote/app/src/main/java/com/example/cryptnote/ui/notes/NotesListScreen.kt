@@ -37,17 +37,27 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -59,6 +69,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -67,7 +79,14 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import com.example.cryptnote.security.DecryptDiagnosticEntry
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SearchBar
@@ -172,6 +191,29 @@ fun NotesListScreen(
                         duration = SnackbarDuration.Short
                     )
                 }
+                is NotesListEvent.RequestBiometricUnlock -> {
+                    val activity = context as? androidx.fragment.app.FragmentActivity
+                    val biometricManager = try {
+                        EntryPointAccessors.fromApplication(
+                            context.applicationContext,
+                            com.example.cryptnote.di.SecurityEntryPoint::class.java
+                        ).biometricAuthManager()
+                    } catch (_: Exception) { null }
+
+                    if (activity != null && biometricManager != null) {
+                        biometricManager.authenticate(
+                            activity = activity,
+                            cryptoObject = androidx.biometric.BiometricPrompt.CryptoObject(event.cipher),
+                            onSuccess = { result ->
+                                result.cryptoObject?.cipher?.let { verifiedCipher ->
+                                    viewModel.onBiometricUnlockSuccess(verifiedCipher)
+                                }
+                            },
+                            onError = { _, _ -> },
+                            onFailed = {}
+                        )
+                    }
+                }
             }
         }
     }
@@ -198,14 +240,36 @@ fun NotesListScreen(
         DecryptionErrorDialog(
             note = note,
             onDelete = {
-                viewModel.deleteNote(note)
-                viewModel.onDismissDecryptionErrorDialog()
+                viewModel.quarantineNote(note.id, "User requested quarantine of unreadable note")
             },
             onRefresh = {
                 viewModel.refreshNotes()
                 viewModel.onDismissDecryptionErrorDialog()
             },
             onDismiss = { viewModel.onDismissDecryptionErrorDialog() }
+        )
+    }
+
+    // Render Unlock Vault Dialog (NV-FE-5, NV-FE-6)
+    if (uiState.showUnlockVaultDialog) {
+        UnlockVaultDialog(
+            errorMessage = uiState.unlockVaultError,
+            canBiometric = viewModel.canUnlockWithBiometric(),
+            onUnlockWithPassphrase = { passphrase ->
+                viewModel.unlockVaultWithPassphrase(passphrase)
+            },
+            onTriggerBiometric = {
+                viewModel.triggerBiometricUnlock()
+            },
+            onDismiss = { viewModel.dismissUnlockVaultDialog() }
+        )
+    }
+
+    // Render Decrypt Diagnostics Sheet (NV-FE-9)
+    if (uiState.showDiagnosticsSheet) {
+        DecryptDiagnosticsSheet(
+            diagnostics = uiState.recentDiagnostics,
+            onDismiss = { viewModel.toggleDiagnosticsSheet(false) }
         )
     }
 
@@ -269,6 +333,18 @@ fun NotesListScreen(
                     }
 
 
+                    // Decrypt Diagnostics Button (NV-FE-9)
+                    IconButton(
+                        onClick = { viewModel.toggleDiagnosticsSheet(true) },
+                        modifier = Modifier.semantics { contentDescription = "Decryption Diagnostics" }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Assessment,
+                            contentDescription = "Decryption Diagnostics",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
                     // Theme Customizer Button
                     IconButton(
                         onClick = { showThemeDialog = true },
@@ -281,15 +357,25 @@ fun NotesListScreen(
                         )
                     }
 
-                    // Lock Vault Button
+                    // Vault Lock/App Lock Button
                     IconButton(
-                        onClick = onLockVault,
+                        onClick = {
+                            if (uiState.currentTab == NotesTab.VAULT && !uiState.isVaultLocked) {
+                                viewModel.lockVaultNow()
+                            } else {
+                                onLockVault()
+                            }
+                        },
                         modifier = Modifier.semantics { contentDescription = "Lock Vault" }
                     ) {
                         Icon(
                             imageVector = Icons.Default.Lock,
                             contentDescription = "Lock Vault",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (uiState.currentTab == NotesTab.VAULT && !uiState.isVaultLocked) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
                         )
                     }
 
@@ -311,10 +397,41 @@ fun NotesListScreen(
                 )
             )
         },
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 3.dp
+            ) {
+                NavigationBarItem(
+                    selected = uiState.currentTab == NotesTab.NOTES,
+                    onClick = { viewModel.selectTab(NotesTab.NOTES) },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Description,
+                            contentDescription = "Notes"
+                        )
+                    },
+                    label = { Text("Notes") }
+                )
+                NavigationBarItem(
+                    selected = uiState.currentTab == NotesTab.VAULT,
+                    onClick = { viewModel.selectTab(NotesTab.VAULT) },
+                    icon = {
+                        Icon(
+                            imageVector = if (uiState.isVaultLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                            contentDescription = "Vault"
+                        )
+                    },
+                    label = { Text("Vault") }
+                )
+            }
+        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
-                    if (isTablet) {
+                    if (uiState.currentTab == NotesTab.VAULT && uiState.isVaultLocked) {
+                        viewModel.openUnlockVaultDialog()
+                    } else if (isTablet) {
                         tabletSelectedNoteId = "new"
                     } else {
                         onNavigateToEditor("new")
@@ -344,7 +461,7 @@ fun NotesListScreen(
                         viewModel = viewModel,
                         selectedNoteId = tabletSelectedNoteId,
                         onNoteClick = { note ->
-                            if (note.title.startsWith("⚠️ Decryption Error")) {
+                            if (note.title.startsWith("⚠️")) {
                                 viewModel.onDecryptionErrorNoteSelected(note)
                             } else if (note.conflictGroupId != null) {
                                 viewModel.onConflictSelected(note.conflictGroupId)
@@ -418,7 +535,7 @@ fun NotesListScreen(
                 viewModel = viewModel,
                 selectedNoteId = null,
                 onNoteClick = { note ->
-                    if (note.title.startsWith("⚠️ Decryption Error")) {
+                    if (note.title.startsWith("⚠️")) {
                         viewModel.onDecryptionErrorNoteSelected(note)
                     } else if (note.conflictGroupId != null) {
                         viewModel.onConflictSelected(note.conflictGroupId)
@@ -532,12 +649,125 @@ private fun NotesListContent(
 
         Spacer(modifier = Modifier.height(4.dp))
 
+        val isVaultTab = uiState.currentTab == NotesTab.VAULT
+        val currentDisplayNotes = if (isVaultTab) uiState.vaultNotes else uiState.notes
+
         PullToRefreshBox(
             isRefreshing = uiState.isRefreshing,
             onRefresh = { viewModel.refreshNotes() },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null
+                ) {
+                    if (isVaultTab) {
+                        viewModel.onVaultTouched()
+                    }
+                }
         ) {
-            if (uiState.notes.isEmpty() && !uiState.isLoading) {
+            if (isVaultTab && uiState.isVaultLocked) {
+                // NV-FE-5: Vault tab queries is_vault = 1 and shows locked rows: date + ciphertext preview, no title
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    item(key = "vault_locked_card") {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Lock,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = "Secure Vault is Locked",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Private notes are encrypted and isolated. Verify your passphrase or biometric to decrypt and access vault items.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(
+                                    onClick = { viewModel.openUnlockVaultDialog() },
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Icon(Icons.Default.LockOpen, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Unlock Vault")
+                                }
+                            }
+                        }
+                    }
+
+                    if (currentDisplayNotes.isEmpty()) {
+                        item(key = "empty_vault_locked") {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Your private vault is empty. Move notes to Vault from the Notes tab.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        item(key = "locked_vault_header") {
+                            Text(
+                                text = "LOCKED ITEMS (${currentDisplayNotes.size})",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp
+                                ),
+                                color = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+                            )
+                        }
+
+                        items(
+                            items = currentDisplayNotes,
+                            key = { it.id }
+                        ) { note ->
+                            LockedVaultNoteCard(
+                                note = note,
+                                onClick = { viewModel.openUnlockVaultDialog() }
+                            )
+                        }
+                    }
+                }
+            } else if (currentDisplayNotes.isEmpty() && !uiState.isLoading) {
                 EmptyNotesView(
                     isSearchActive = uiState.searchQuery.isNotEmpty() || uiState.selectedTag != null,
                     onCreateNote = onCreateNewNote,
@@ -547,14 +777,57 @@ private fun NotesListContent(
                     }
                 )
             } else {
-                val pinnedNotes = remember(uiState.notes) { uiState.notes.filter { it.pinned } }
-                val otherNotes = remember(uiState.notes) { uiState.notes.filterNot { it.pinned } }
+                val pinnedNotes = remember(currentDisplayNotes) { currentDisplayNotes.filter { it.pinned } }
+                val otherNotes = remember(currentDisplayNotes) { currentDisplayNotes.filterNot { it.pinned } }
 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    if (isVaultTab) {
+                        item(key = "vault_unlocked_banner") {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 4.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                ),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.LockOpen,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Vault Unlocked (auto-locks after 1m idle)",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+                                    TextButton(
+                                        onClick = { viewModel.lockVaultNow() },
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    ) {
+                                        Text("Lock Now", style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Pinned Section Header (if both pinned and regular notes exist)
                     if (pinnedNotes.isNotEmpty() && otherNotes.isNotEmpty()) {
                         item(key = "header_pinned") {
@@ -592,7 +865,8 @@ private fun NotesListContent(
                             onClick = { onNoteClick(note) },
                             onDelete = { viewModel.deleteNote(note) },
                             onTogglePin = { viewModel.onTogglePin(note) },
-                            onSyncStatusClick = { onSyncStatusClick(note) }
+                            onSyncStatusClick = { onSyncStatusClick(note) },
+                            onMoveToVault = { viewModel.moveToVault(note.id, toVault = !isVaultTab) }
                         )
                     }
 
@@ -622,7 +896,8 @@ private fun NotesListContent(
                             onClick = { onNoteClick(note) },
                             onDelete = { viewModel.deleteNote(note) },
                             onTogglePin = { viewModel.onTogglePin(note) },
-                            onSyncStatusClick = { onSyncStatusClick(note) }
+                            onSyncStatusClick = { onSyncStatusClick(note) },
+                            onMoveToVault = { viewModel.moveToVault(note.id, toVault = !isVaultTab) }
                         )
                     }
                 }
@@ -700,7 +975,8 @@ private fun SwipeableNoteCard(
     onClick: () -> Unit,
     onDelete: () -> Unit,
     onTogglePin: () -> Unit,
-    onSyncStatusClick: () -> Unit
+    onSyncStatusClick: () -> Unit,
+    onMoveToVault: (() -> Unit)? = null
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { dismissValue ->
@@ -743,7 +1019,8 @@ private fun SwipeableNoteCard(
             isSelected = isSelected,
             onClick = onClick,
             onTogglePin = onTogglePin,
-            onSyncStatusClick = onSyncStatusClick
+            onSyncStatusClick = onSyncStatusClick,
+            onMoveToVault = onMoveToVault
         )
     }
 }
@@ -756,6 +1033,7 @@ fun NoteItemCard(
     onClick: () -> Unit,
     onTogglePin: () -> Unit = {},
     onSyncStatusClick: () -> Unit = {},
+    onMoveToVault: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val isConflicted = note.conflictGroupId != null
@@ -850,6 +1128,44 @@ fun NoteItemCard(
                         status = note.syncStatus,
                         onClick = onSyncStatusClick
                     )
+
+                    if (onMoveToVault != null) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        var menuExpanded by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(
+                                onClick = { menuExpanded = true },
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .semantics { contentDescription = "Note actions" }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "Note actions",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = menuExpanded,
+                                onDismissRequest = { menuExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(if (note.isVault) "Move out of Vault" else "Move to Vault") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = if (note.isVault) Icons.Default.LockOpen else Icons.Default.Lock,
+                                            contentDescription = null
+                                        )
+                                    },
+                                    onClick = {
+                                        menuExpanded = false
+                                        onMoveToVault()
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -1119,6 +1435,13 @@ fun SyncStatusDetailDialog(
     )
 }
 
+enum class DecryptionFailureType {
+    UNKNOWN_FORMAT,
+    KEY_MISMATCH,
+    CORRUPT,
+    CHECKSUM_MISMATCH
+}
+
 @Composable
 fun DecryptionErrorDialog(
     note: Note,
@@ -1126,56 +1449,150 @@ fun DecryptionErrorDialog(
     onRefresh: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = {
-            Icon(
-                imageVector = Icons.Default.Warning,
-                contentDescription = "Decryption Error",
-                tint = MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(36.dp)
-            )
-        },
-        title = {
-            Text(
-                text = "Unreadable Note",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var showDiagnostics by remember { mutableStateOf(false) }
+
+    val failureType = when {
+        note.title.contains("Unsupported Version", ignoreCase = true) ||
+        note.body.contains("newer version", ignoreCase = true) -> DecryptionFailureType.UNKNOWN_FORMAT
+
+        note.title.contains("Key Mismatch", ignoreCase = true) ||
+        note.body.contains("different key", ignoreCase = true) -> DecryptionFailureType.KEY_MISMATCH
+
+        note.body.contains("transit", ignoreCase = true) ||
+        note.title.contains("Checksum", ignoreCase = true) -> DecryptionFailureType.CHECKSUM_MISMATCH
+
+        else -> DecryptionFailureType.CORRUPT
+    }
+
+    val (titleText, messageText, actionLabel) = when (failureType) {
+        DecryptionFailureType.UNKNOWN_FORMAT -> Triple(
+            "Unsupported Note Version",
+            "This note was saved by a newer version. Update the app.",
+            "Open Play Listing"
+        )
+        DecryptionFailureType.KEY_MISMATCH -> Triple(
+            "Key Mismatch",
+            "This note was saved under a different key.",
+            "Try Recovery Key"
+        )
+        DecryptionFailureType.CHECKSUM_MISMATCH -> Triple(
+            "Checksum Mismatch",
+            "The cloud copy changed in transit.",
+            "Retry Download"
+        )
+        DecryptionFailureType.CORRUPT -> Triple(
+            "Damaged Note",
+            "This note is damaged on this device.",
+            "Download Again from Cloud"
+        )
+    }
+
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text("Quarantine & Delete Note?", fontWeight = FontWeight.Bold) },
+            text = {
                 Text(
-                    text = "This note's encrypted ciphertext cannot be decrypted with your current vault key. It may have been created under a previous account or modified during synchronization.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    "This note will be safely moved to local quarantine for 30 days before permanent deletion. You can restore it anytime from quarantine."
                 )
-                Text(
-                    text = "Note ID: ${note.id}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = onDelete,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text("Delete Note")
-            }
-        },
-        dismissButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onRefresh) {
-                    Text("Re-sync Cloud")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirmation = false
+                        onDelete()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Confirm Quarantine & Delete")
                 }
-                TextButton(onClick = onDismiss) {
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) {
                     Text("Cancel")
                 }
             }
-        }
-    )
+        )
+    } else {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = "Decryption Failure",
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = titleText,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = messageText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // Diagnostics Toggle
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showDiagnostics = !showDiagnostics }
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (showDiagnostics) "Hide Diagnostics" else "Show Diagnostics",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    if (showDiagnostics) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Format Version: ${if (failureType == DecryptionFailureType.UNKNOWN_FORMAT) "2+" else "1"}", style = MaterialTheme.typography.labelSmall)
+                                Text("Key ID Prefix: ${note.id.take(8)}", style = MaterialTheme.typography.labelSmall)
+                                Text("App Version: 1.0 (Build 1)", style = MaterialTheme.typography.labelSmall)
+                                Text("Failure Class: ${failureType.name}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = onRefresh) {
+                    Text(actionLabel)
+                }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { showDeleteConfirmation = true },
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("Delete")
+                    }
+                    TextButton(onClick = onDismiss) {
+                        Text("Dismiss")
+                    }
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -1432,3 +1849,277 @@ private fun formatTimestamp(millis: Long): String {
     val formatter = SimpleDateFormat("MMM d, yyyy • h:mm a", Locale.getDefault())
     return formatter.format(Date(millis))
 }
+
+@Composable
+fun LockedVaultNoteCard(
+    note: Note,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = "Locked vault note" },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = "Locked item",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "🔒 Locked Vault Item",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Preview: ${note.ciphertextPreview ?: "encrypted envelope"}",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    ),
+                    color = MaterialTheme.colorScheme.outline,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Updated: ${formatTimestamp(note.updatedAt)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.8f)
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = "Unlock",
+                tint = MaterialTheme.colorScheme.outline
+            )
+        }
+    }
+}
+
+@Composable
+fun UnlockVaultDialog(
+    errorMessage: String?,
+    canBiometric: Boolean,
+    onUnlockWithPassphrase: (CharArray) -> Unit,
+    onTriggerBiometric: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var passphraseInput by remember { mutableStateOf("") }
+    var isPassphraseVisible by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Unlock Private Vault", fontWeight = FontWeight.Bold)
+            }
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Enter your master vault passphrase to decrypt your sensitive vault items.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = passphraseInput,
+                    onValueChange = { passphraseInput = it },
+                    label = { Text("Master Passphrase") },
+                    singleLine = true,
+                    visualTransformation = if (isPassphraseVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { isPassphraseVisible = !isPassphraseVisible }) {
+                            Icon(
+                                imageVector = if (isPassphraseVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = if (isPassphraseVisible) "Hide passphrase" else "Show passphrase"
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = errorMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
+                if (canBiometric) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = onTriggerBiometric,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Fingerprint, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Unlock with Biometrics")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onUnlockWithPassphrase(passphraseInput.toCharArray())
+                },
+                enabled = passphraseInput.isNotBlank()
+            ) {
+                Text("Unlock")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DecryptDiagnosticsSheet(
+    diagnostics: List<DecryptDiagnosticEntry>,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Decryption Diagnostics",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Last ${diagnostics.size} attempts • Audit log (no keys/plaintext)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (diagnostics.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No decryption operations recorded yet in this session.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.outline,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(diagnostics) { entry ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    val isSuccess = entry.resultClass in listOf("Opened", "LegacySuccess", "LegacyCandidateSuccess")
+                                    val badgeColor = if (isSuccess) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                    val badgeBg = if (isSuccess) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(badgeBg)
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = entry.resultClass,
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = badgeColor
+                                            )
+                                        )
+                                    }
+                                    Text(
+                                        text = formatTimestamp(entry.timestamp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Note: ${entry.noteId.take(8)}... | Key ID: ${entry.keyIdPrefixHex} | Format: v${entry.formatVersion} | App: ${entry.appVersion}",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                    ),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
