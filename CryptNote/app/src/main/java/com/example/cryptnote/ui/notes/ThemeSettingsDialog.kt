@@ -1,8 +1,11 @@
 package com.example.cryptnote.ui.notes
 
 import android.os.Build
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -30,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -61,7 +66,7 @@ fun ThemeSettingsDialog(
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Appearance & Theme")
+                Text("Appearance & Theme", fontWeight = FontWeight.SemiBold)
             }
         },
         text = {
@@ -100,9 +105,9 @@ fun ThemeSettingsDialog(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = when (mode) {
-                                ThemeMode.SYSTEM -> "System Default"
+                                ThemeMode.SYSTEM -> "Follow System Default"
                                 ThemeMode.LIGHT -> "Light Mode"
-                                ThemeMode.DARK -> "Dark Mode (Cyber Stealth)"
+                                ThemeMode.DARK -> "Dark Mode (Obsidian)"
                             },
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -112,70 +117,98 @@ fun ThemeSettingsDialog(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                 Text(
-                    text = "ACCENT COLOR",
+                    text = "ACCENT COLOR PALETTE",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
 
-                ThemeColor.entries.forEach { color ->
+                val colors = ThemeColor.entries
+                for (i in colors.indices step 2) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable {
-                                coroutineScope.launch {
-                                    themePreferencesManager.setThemeColor(color)
-                                }
-                            }
-                            .padding(vertical = 4.dp, horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        RadioButton(
-                            selected = currentColor == color,
-                            onClick = {
-                                coroutineScope.launch {
-                                    themePreferencesManager.setThemeColor(color)
+                        for (j in i..minOf(i + 1, colors.size - 1)) {
+                            val color = colors[j]
+                            val isSelected = currentColor == color && !dynamicColor
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(
+                                        if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                    )
+                                    .border(
+                                        width = if (isSelected) 2.dp else 1.dp,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                                        shape = RoundedCornerShape(10.dp)
+                                    )
+                                    .clickable {
+                                        coroutineScope.launch {
+                                            themePreferencesManager.setThemeColor(color)
+                                        }
+                                    }
+                                    .padding(vertical = 10.dp, horizontal = 10.dp),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(color.hexColor))
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = color.displayName,
+                                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                                        maxLines = 1
+                                    )
                                 }
                             }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = color.displayName,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        }
                     }
                 }
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Dynamic Theming",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Derive colors from Android 12+ wallpaper",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
-                        Switch(
-                            checked = dynamicColor,
-                            onCheckedChange = { isEnabled ->
-                                coroutineScope.launch {
-                                    themePreferencesManager.setDynamicColor(isEnabled)
-                                }
+                val isAndroid12Plus = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(enabled = isAndroid12Plus) {
+                            coroutineScope.launch {
+                                themePreferencesManager.setDynamicColor(!dynamicColor)
                             }
+                        }
+                        .padding(vertical = 6.dp, horizontal = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Dynamic Theming",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = if (isAndroid12Plus) "Wallpaper colors (Android 12+)" else "Requires Android 12+",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline
                         )
                     }
+                    Switch(
+                        checked = dynamicColor,
+                        enabled = isAndroid12Plus,
+                        onCheckedChange = { isEnabled ->
+                            coroutineScope.launch {
+                                themePreferencesManager.setDynamicColor(isEnabled)
+                            }
+                        }
+                    )
                 }
             }
         },

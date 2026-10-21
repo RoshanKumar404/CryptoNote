@@ -32,7 +32,7 @@ enum class ThemeColor(val displayName: String, val hexColor: Long) {
 
 /**
  * Manages user appearance preferences: ThemeMode (System, Light, Dark),
- * Accent Color Palette, and Material 3 Dynamic Color switching.
+ * Accent Color Palette, Material 3 Dynamic Color switching, and Greeting Name.
  */
 @Singleton
 class ThemePreferencesManager @Inject constructor(
@@ -42,6 +42,7 @@ class ThemePreferencesManager @Inject constructor(
     private val themeModeKey = stringPreferencesKey("theme_mode")
     private val themeColorKey = stringPreferencesKey("theme_color")
     private val dynamicColorKey = booleanPreferencesKey("dynamic_color")
+    private val userGreetingKey = stringPreferencesKey("user_greeting_name")
 
     val themeMode: Flow<ThemeMode> = context.dataStore.data.map { preferences ->
         val modeStr = preferences[themeModeKey] ?: ThemeMode.SYSTEM.name
@@ -65,6 +66,10 @@ class ThemePreferencesManager @Inject constructor(
         preferences[dynamicColorKey] ?: false
     }
 
+    val userGreetingName: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[userGreetingKey] ?: ""
+    }
+
     suspend fun setThemeMode(mode: ThemeMode) {
         context.dataStore.edit { preferences ->
             preferences[themeModeKey] = mode.name
@@ -74,7 +79,6 @@ class ThemePreferencesManager @Inject constructor(
     suspend fun setThemeColor(color: ThemeColor) {
         context.dataStore.edit { preferences ->
             preferences[themeColorKey] = color.name
-            // When user picks a custom theme color, disable system dynamic color to ensure selected color is shown
             preferences[dynamicColorKey] = false
         }
     }
@@ -82,6 +86,12 @@ class ThemePreferencesManager @Inject constructor(
     suspend fun setDynamicColor(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[dynamicColorKey] = enabled
+        }
+    }
+
+    suspend fun setUserGreetingName(name: String) {
+        context.dataStore.edit { preferences ->
+            preferences[userGreetingKey] = name.trim()
         }
     }
 }

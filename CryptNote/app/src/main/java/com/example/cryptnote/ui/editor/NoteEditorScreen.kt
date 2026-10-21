@@ -189,20 +189,6 @@ fun NoteEditorScreen(
                         )
                     }
 
-                    // Markdown Preview toggle button
-                    IconButton(
-                        onClick = { viewModel.onTogglePreview() },
-                        modifier = Modifier.semantics {
-                            contentDescription = if (uiState.isPreviewMode) "Switch to Edit Mode" else "Preview Markdown"
-                        }
-                    ) {
-                        Icon(
-                            imageVector = if (uiState.isPreviewMode) Icons.Default.Edit else Icons.Default.Visibility,
-                            contentDescription = if (uiState.isPreviewMode) "Switch to Edit Mode" else "Preview Markdown",
-                            tint = if (uiState.isPreviewMode) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
                     // Copy Content (with anti-forensic clipboard auto-clear)
                     IconButton(
                         onClick = {

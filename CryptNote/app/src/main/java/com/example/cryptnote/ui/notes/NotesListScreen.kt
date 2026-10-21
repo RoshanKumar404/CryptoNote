@@ -37,15 +37,18 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,6 +60,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SearchBar
 import androidx.compose.material3.SearchBarDefaults
@@ -75,6 +79,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -111,6 +116,7 @@ fun NotesListScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var selectedSyncDetailNote by remember { mutableStateOf<Note?>(null) }
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showGreetingEditDialog by remember { mutableStateOf(false) }
 
     // Adaptive layout support: check screen width for 2-pane tablet mode
     val configuration = LocalConfiguration.current
@@ -118,6 +124,7 @@ fun NotesListScreen(
     var tabletSelectedNoteId by remember { mutableStateOf<String?>(null) }
 
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val themePreferencesManager = remember {
         try {
             EntryPointAccessors.fromApplication(
@@ -128,6 +135,8 @@ fun NotesListScreen(
             null
         }
     }
+    val customGreetingName = themePreferencesManager?.userGreetingName
+        ?.collectAsStateWithLifecycle(initialValue = "")?.value ?: ""
 
     LaunchedEffect(viewModel.eventFlow) {
         viewModel.eventFlow.collect { event ->
@@ -244,26 +253,69 @@ fun NotesListScreen(
         )
     }
 
+    // Render Greeting Personalization Dialog
+    if (showGreetingEditDialog && themePreferencesManager != null) {
+        var greetingInput by remember { mutableStateOf(customGreetingName) }
+        AlertDialog(
+            onDismissRequest = { showGreetingEditDialog = false },
+            title = { Text("Personalize Greeting", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        text = "Enter your name to personalize your daily greeting on the home screen:",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = greetingInput,
+                        onValueChange = { greetingInput = it },
+                        placeholder = { Text("e.g. Roshan") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        coroutineScope.launch {
+                            themePreferencesManager.setUserGreetingName(greetingInput)
+                        }
+                        showGreetingEditDialog = false
+                    }
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showGreetingEditDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     val onlineColor = Color(0xFF4CAF50)
     val offlineColor = MaterialTheme.colorScheme.error
     var borderActiveColor by remember { mutableStateOf(Color.Transparent) }
 
     LaunchedEffect(uiState.isOnline) {
         val targetColor = if (uiState.isOnline) onlineColor else offlineColor
-        val msg = if (uiState.isOnline) "Online — notes synced" else "Offline — working locally"
+        val msg = if (uiState.isOnline) "Online" else "Offline"
 
         snackbarHostState.currentSnackbarData?.dismiss()
-        launch {
+        borderActiveColor = targetColor
+
+        val job = launch {
             snackbarHostState.showSnackbar(
                 message = msg,
-                duration = SnackbarDuration.Short
+                duration = SnackbarDuration.Indefinite
             )
         }
-
-        // Show border for 0.5 sec, then turn off
-        borderActiveColor = targetColor
-        delay(500)
+        delay(1000)
         borderActiveColor = Color.Transparent
+        snackbarHostState.currentSnackbarData?.dismiss()
+        job.cancel()
     }
 
     val animatedBorderColor by animateColorAsState(
@@ -572,6 +624,8 @@ fun NotesListScreen(
                 },
                 onSyncStatusClick = { note -> selectedSyncDetailNote = note },
                 onCreateNewNote = { onNavigateToEditor("new") },
+                customGreetingName = customGreetingName,
+                onEditGreeting = { showGreetingEditDialog = true },
                 animatedBorderColor = animatedBorderColor,
                 modifier = Modifier.padding(innerPadding)
             )
@@ -588,6 +642,8 @@ private fun NotesListContent(
     onNoteClick: (Note) -> Unit,
     onSyncStatusClick: (Note) -> Unit,
     onCreateNewNote: () -> Unit,
+    customGreetingName: String = "",
+    onEditGreeting: () -> Unit = {},
     animatedBorderColor: Color = Color(0xFF4CAF50),
     modifier: Modifier = Modifier
 ) {
@@ -719,6 +775,58 @@ private fun NotesListContent(
 
         val isVaultTab = uiState.currentTab == NotesTab.VAULT
         val currentDisplayNotes = if (isVaultTab) uiState.vaultNotes else uiState.notes
+
+        // Greeting Header Banner (Home / Notes tab)
+        if (!isVaultTab && uiState.searchQuery.isEmpty() && uiState.selectedTag == null) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .clickable { onEditGreeting() },
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                ),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = getFormattedDateDay(),
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 0.5.sp
+                            ),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = getGreetingText(customGreetingName),
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    IconButton(
+                        onClick = { onEditGreeting() },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Update Greeting Name",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+        }
 
         PullToRefreshBox(
             isRefreshing = uiState.isRefreshing,
@@ -879,17 +987,54 @@ private fun NotesListContent(
                                             modifier = Modifier.size(18.dp)
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "Vault Unlocked (auto-locks after 1m idle)",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
-                                    }
-                                    TextButton(
-                                        onClick = { viewModel.lockVaultNow() },
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
                                     ) {
-                                        Text("Lock Now", style = MaterialTheme.typography.labelSmall)
+                                        Box(
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.LockOpen,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text(
+                                                text = "Vault Unlocked",
+                                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                            Text(
+                                                text = "Auto-locks after 1m idle",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                            )
+                                        }
+                                    }
+                                    Button(
+                                        onClick = { viewModel.lockVaultNow() },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.error,
+                                            contentColor = MaterialTheme.colorScheme.onError
+                                        ),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                        modifier = Modifier.height(34.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Lock,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Lock Vault", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
                                     }
                                 }
                             }
@@ -974,4 +1119,21 @@ private fun NotesListContent(
             }
         }
     }
+}
+}
+
+private fun getGreetingText(customName: String): String {
+    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    val greetingPrefix = when (hour) {
+        in 5..11 -> "Good Morning"
+        in 12..16 -> "Good Afternoon"
+        in 17..22 -> "Good Evening"
+        else -> "Good Night"
+    }
+    return if (customName.isNotBlank()) "$greetingPrefix, $customName 👋" else "$greetingPrefix 👋"
+}
+
+private fun getFormattedDateDay(): String {
+    val sdf = java.text.SimpleDateFormat("EEEE, d MMMM yyyy", java.util.Locale.getDefault())
+    return sdf.format(java.util.Date())
 }
