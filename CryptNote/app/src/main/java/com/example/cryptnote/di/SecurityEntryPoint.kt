@@ -14,4 +14,6 @@ interface SecurityEntryPoint {
     fun inactivityLockManager(): InactivityLockManager
     fun clipboardAutoClearManager(): ClipboardAutoClearManager
     fun themePreferencesManager(): com.example.cryptnote.data.preferences.ThemePreferencesManager
+    fun vaultLock(): com.example.cryptnote.security.VaultLock
+    fun decryptDiagnostics(): com.example.cryptnote.security.DecryptDiagnostics
 }

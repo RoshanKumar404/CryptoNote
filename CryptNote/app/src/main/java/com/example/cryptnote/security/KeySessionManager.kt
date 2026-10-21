@@ -22,6 +22,7 @@ interface KeySessionManager {
     fun lock()
     fun getEncryptionKey(): ByteArray
     fun getAuthKey(): ByteArray
+    fun getKeyId(): ByteArray
 
     fun canUnlockWithBiometric(): Boolean
     fun setupBiometric(cipher: javax.crypto.Cipher): Result<Unit>
@@ -45,6 +46,7 @@ class KeySessionManagerImpl @Inject constructor(
 
     private var activeEncryptionKey: ByteArray? = null
     private var activeAuthKey: ByteArray? = null
+    private var activeKeyId: ByteArray? = null
 
     @Synchronized
     override fun setupPassphrase(passphrase: CharArray, salt: ByteArray?): Result<Unit> {
@@ -61,10 +63,13 @@ class KeySessionManagerImpl @Inject constructor(
             val derived = cryptoManager.splitMasterKey(masterKey)
             val wrapped = keyWrapper.wrapKey(masterKey)
 
+            val kcv = computeKcv(masterKey)
             keyStorageManager.storeVault(
                 salt = effectiveSalt,
                 wrappedKey = wrapped.wrappedKey,
-                iv = wrapped.iv
+                iv = wrapped.iv,
+                kcv = kcv,
+                keyVersion = 1
             )
 
             // Clear previous active keys if any
@@ -72,6 +77,7 @@ class KeySessionManagerImpl @Inject constructor(
 
             activeEncryptionKey = derived.encryptionKey
             activeAuthKey = derived.authKey
+            activeKeyId = cryptoManager.deriveKeyId(masterKey)
             _isUnlocked.value = true
 
             return Result.success(Unit)
@@ -88,16 +94,20 @@ class KeySessionManagerImpl @Inject constructor(
             val derived = cryptoManager.splitMasterKey(masterKey)
             val wrapped = keyWrapper.wrapKey(masterKey)
 
+            val kcv = computeKcv(masterKey)
             keyStorageManager.storeVault(
                 salt = salt,
                 wrappedKey = wrapped.wrappedKey,
-                iv = wrapped.iv
+                iv = wrapped.iv,
+                kcv = kcv,
+                keyVersion = 1
             )
 
             lock()
 
             activeEncryptionKey = derived.encryptionKey
             activeAuthKey = derived.authKey
+            activeKeyId = cryptoManager.deriveKeyId(masterKey)
             _isUnlocked.value = true
 
             return Result.success(Unit)
@@ -127,7 +137,16 @@ class KeySessionManagerImpl @Inject constructor(
             // Constant-time comparison between derived candidate and Keystore unwrapped master key
             val matches = MessageDigest.isEqual(candidateMasterKey, unwrappedMasterKey)
             if (!matches) {
-                return Result.failure(IllegalArgumentException("Invalid master passphrase"))
+                return Result.failure(IllegalArgumentException("Wrong passphrase"))
+            }
+
+            // Verify Key Check Value (KCV) per NV-FE-2
+            val storedKcv = keyStorageManager.getKcv()
+            if (storedKcv != null) {
+                val candidateKcv = computeKcv(candidateMasterKey)
+                if (!MessageDigest.isEqual(candidateKcv, storedKcv)) {
+                    return Result.failure(IllegalArgumentException("Wrong passphrase"))
+                }
             }
 
             val derived = cryptoManager.splitMasterKey(candidateMasterKey)
@@ -137,6 +156,7 @@ class KeySessionManagerImpl @Inject constructor(
 
             activeEncryptionKey = derived.encryptionKey
             activeAuthKey = derived.authKey
+            activeKeyId = cryptoManager.deriveKeyId(candidateMasterKey)
             _isUnlocked.value = true
 
             return Result.success(Unit)
@@ -155,6 +175,9 @@ class KeySessionManagerImpl @Inject constructor(
 
         activeAuthKey?.fill(0)
         activeAuthKey = null
+
+        activeKeyId?.fill(0)
+        activeKeyId = null
 
         _isUnlocked.value = false
     }
@@ -175,6 +198,15 @@ class KeySessionManagerImpl @Inject constructor(
             throw IllegalStateException("Crypto vault is currently locked. Unlock with passphrase first.")
         }
         return key
+    }
+
+    @Synchronized
+    override fun getKeyId(): ByteArray {
+        val keyId = activeKeyId
+        if (!_isUnlocked.value || keyId == null) {
+            throw IllegalStateException("Crypto vault is currently locked. Unlock with passphrase first.")
+        }
+        return keyId
     }
 
     override val isBiometricEnabled: Boolean
@@ -237,6 +269,7 @@ class KeySessionManagerImpl @Inject constructor(
 
             activeEncryptionKey = derived.encryptionKey
             activeAuthKey = derived.authKey
+            activeKeyId = cryptoManager.deriveKeyId(masterKey)
             _isUnlocked.value = true
 
             return Result.success(Unit)
@@ -245,6 +278,13 @@ class KeySessionManagerImpl @Inject constructor(
         } finally {
             masterKey.fill(0)
         }
+    }
+
+    private fun computeKcv(masterKey: ByteArray): ByteArray {
+        val digest = MessageDigest.getInstance("SHA-256")
+        digest.update("cryptnote/kcv/v1".toByteArray(Charsets.UTF_8))
+        digest.update(masterKey)
+        return digest.digest().copyOf(8)
     }
 
     companion object {

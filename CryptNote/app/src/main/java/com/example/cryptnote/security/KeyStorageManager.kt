@@ -16,10 +16,12 @@ import javax.inject.Singleton
  */
 interface KeyStorageManager {
     fun isSetup(): Boolean
-    fun storeVault(salt: ByteArray, wrappedKey: ByteArray, iv: ByteArray)
+    fun storeVault(salt: ByteArray, wrappedKey: ByteArray, iv: ByteArray, kcv: ByteArray? = null, keyVersion: Int = 1)
     fun getSalt(): ByteArray?
     fun getWrappedKey(): ByteArray?
     fun getWrapperIv(): ByteArray?
+    fun getKcv(): ByteArray?
+    fun getKeyVersion(): Int
     fun storeBiometricVault(wrappedKey: ByteArray, iv: ByteArray)
     fun getBiometricWrappedKey(): ByteArray?
     fun getBiometricIv(): ByteArray?
@@ -64,12 +66,19 @@ class KeyStorageManagerImpl @Inject constructor(
         return getSalt() != null && getWrappedKey() != null && getWrapperIv() != null
     }
 
-    override fun storeVault(salt: ByteArray, wrappedKey: ByteArray, iv: ByteArray) {
-        prefs.edit()
+    override fun storeVault(salt: ByteArray, wrappedKey: ByteArray, iv: ByteArray, kcv: ByteArray?, keyVersion: Int) {
+        val editor = prefs.edit()
             .putString(KEY_SALT, Base64.encodeToString(salt, Base64.NO_WRAP))
             .putString(KEY_WRAPPED_KEY, Base64.encodeToString(wrappedKey, Base64.NO_WRAP))
             .putString(KEY_WRAPPER_IV, Base64.encodeToString(iv, Base64.NO_WRAP))
-            .apply()
+            .putInt(KEY_KEY_VERSION, keyVersion)
+
+        if (kcv != null) {
+            editor.putString(KEY_KCV, Base64.encodeToString(kcv, Base64.NO_WRAP))
+        } else {
+            editor.remove(KEY_KCV)
+        }
+        editor.apply()
     }
 
     override fun getSalt(): ByteArray? {
@@ -97,6 +106,19 @@ class KeyStorageManagerImpl @Inject constructor(
         } catch (_: Exception) {
             null
         }
+    }
+
+    override fun getKcv(): ByteArray? {
+        val encoded = prefs.getString(KEY_KCV, null) ?: return null
+        return try {
+            Base64.decode(encoded, Base64.NO_WRAP)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    override fun getKeyVersion(): Int {
+        return prefs.getInt(KEY_KEY_VERSION, 1)
     }
 
     override fun storeBiometricVault(wrappedKey: ByteArray, iv: ByteArray) {
@@ -152,6 +174,8 @@ class KeyStorageManagerImpl @Inject constructor(
         private const val KEY_SALT = "vault_salt"
         private const val KEY_WRAPPED_KEY = "vault_wrapped_key"
         private const val KEY_WRAPPER_IV = "vault_wrapper_iv"
+        private const val KEY_KCV = "vault_kcv"
+        private const val KEY_KEY_VERSION = "vault_key_version"
         private const val KEY_BIOMETRIC_WRAPPED_KEY = "vault_biometric_wrapped_key"
         private const val KEY_BIOMETRIC_IV = "vault_biometric_iv"
         private const val KEY_BIOMETRIC_ENABLED = "vault_biometric_enabled"
@@ -165,16 +189,20 @@ class InMemoryKeyStorageManager : KeyStorageManager {
     private var salt: ByteArray? = null
     private var wrappedKey: ByteArray? = null
     private var iv: ByteArray? = null
+    private var kcv: ByteArray? = null
+    private var keyVersion: Int = 1
     private var biometricWrappedKey: ByteArray? = null
     private var biometricIv: ByteArray? = null
     private var biometricEnabled: Boolean = false
 
     override fun isSetup(): Boolean = salt != null && wrappedKey != null && iv != null
 
-    override fun storeVault(salt: ByteArray, wrappedKey: ByteArray, iv: ByteArray) {
+    override fun storeVault(salt: ByteArray, wrappedKey: ByteArray, iv: ByteArray, kcv: ByteArray?, keyVersion: Int) {
         this.salt = salt.copyOf()
         this.wrappedKey = wrappedKey.copyOf()
         this.iv = iv.copyOf()
+        this.kcv = kcv?.copyOf()
+        this.keyVersion = keyVersion
     }
 
     override fun getSalt(): ByteArray? = salt?.copyOf()
@@ -182,6 +210,10 @@ class InMemoryKeyStorageManager : KeyStorageManager {
     override fun getWrappedKey(): ByteArray? = wrappedKey?.copyOf()
 
     override fun getWrapperIv(): ByteArray? = iv?.copyOf()
+
+    override fun getKcv(): ByteArray? = kcv?.copyOf()
+
+    override fun getKeyVersion(): Int = keyVersion
 
     override fun storeBiometricVault(wrappedKey: ByteArray, iv: ByteArray) {
         this.biometricWrappedKey = wrappedKey.copyOf()

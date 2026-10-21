@@ -38,6 +38,7 @@ interface CryptoManager {
         encryptionKey: ByteArray
     ): String
     fun buildAad(noteId: String, version: Int): ByteArray
+    fun deriveKeyId(masterKey: ByteArray): ByteArray
 }
 
 /**
@@ -185,6 +186,11 @@ class CryptoManagerImpl @Inject constructor() : CryptoManager {
         return buffer.array()
     }
 
+    override fun deriveKeyId(masterKey: ByteArray): ByteArray {
+        require(masterKey.size == KEY_LENGTH) { "Master key must be 32 bytes" }
+        return hkdfExpand(masterKey, INFO_KEY_ID, KEY_ID_LENGTH)
+    }
+
     private fun hkdfExpand(prk: ByteArray, info: ByteArray, outLen: Int): ByteArray {
         val hkdf = HKDFBytesGenerator(SHA256Digest())
         // HKDF with null salt treats prk as pseudorandom key for expand step
@@ -209,11 +215,13 @@ class CryptoManagerImpl @Inject constructor() : CryptoManager {
         const val ARGON2_OUTPUT_LENGTH = 32 // 256 bits
 
         const val KEY_LENGTH = 32 // 256 bits
+        const val KEY_ID_LENGTH = 8 // 64 bits per SPEC-3 / NV-FE-1
         const val NONCE_LENGTH = 12 // 96 bits recommended for GCM
         const val GCM_TAG_LENGTH_BITS = 128
         const val AES_GCM_TRANSFORMATION = "AES/GCM/NoPadding"
 
         val INFO_AUTH = "auth".toByteArray(StandardCharsets.UTF_8)
         val INFO_ENCRYPT = "encrypt".toByteArray(StandardCharsets.UTF_8)
+        val INFO_KEY_ID = "cryptnote/key-id/v1".toByteArray(StandardCharsets.UTF_8)
     }
 }

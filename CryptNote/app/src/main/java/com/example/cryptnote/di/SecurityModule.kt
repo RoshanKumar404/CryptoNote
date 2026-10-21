@@ -77,9 +77,35 @@ abstract class SecurityModule {
         androidClipboardAutoClearManager: AndroidClipboardAutoClearManager
     ): ClipboardAutoClearManager
 
+    @Binds
+    @Singleton
+    abstract fun bindKeyLifecycleManager(
+        keyLifecycleManagerImpl: com.example.cryptnote.security.KeyLifecycleManagerImpl
+    ): com.example.cryptnote.security.KeyLifecycleManager
+
+    @Binds
+    @Singleton
+    abstract fun bindDecryptDiagnostics(
+        decryptDiagnosticsImpl: com.example.cryptnote.security.DecryptDiagnosticsImpl
+    ): com.example.cryptnote.security.DecryptDiagnostics
+
     companion object {
         @Provides
         @Singleton
         fun provideMainDispatcher(): CoroutineDispatcher = Dispatchers.Main
+
+        @Provides
+        @Singleton
+        fun provideVaultLock(
+            clipboardManager: ClipboardAutoClearManager
+        ): com.example.cryptnote.security.VaultLock {
+            return com.example.cryptnote.security.VaultLock(
+                scope = kotlinx.coroutines.CoroutineScope(Dispatchers.Main + kotlinx.coroutines.SupervisorJob()),
+                wipe = {
+                    clipboardManager.clearClipboard()
+                },
+                idleMs = 60_000
+            )
+        }
     }
 }
