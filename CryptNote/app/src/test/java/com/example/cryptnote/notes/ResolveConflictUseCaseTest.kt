@@ -71,6 +71,9 @@ class ResolveConflictUseCaseTest {
         override suspend fun deleteNote(id: String) {}
         override fun getConflictNotes(): Flow<List<Note>> = flowOf(emptyList())
         override fun getConflictPairs(): Flow<List<ConflictPair>> = flowOf(emptyList())
+        override fun getVaultNotes(): Flow<List<Note>> = flowOf(emptyList())
+        override suspend fun moveToVault(id: String, toVault: Boolean) {}
+        override suspend fun quarantineNote(id: String, reason: String) {}
 
         override suspend fun resolveConflict(
             conflictGroupId: String,

@@ -219,6 +219,9 @@ class ProfileViewModelTest {
         override suspend fun deleteNote(id: String) = Unit
         override fun getConflictNotes(): Flow<List<Note>> = flowOf(emptyList())
         override fun getConflictPairs(): Flow<List<ConflictPair>> = flowOf(emptyList())
+        override fun getVaultNotes(): Flow<List<Note>> = flowOf(emptyList())
+        override suspend fun moveToVault(id: String, toVault: Boolean) = Unit
+        override suspend fun quarantineNote(id: String, reason: String) = Unit
         override suspend fun resolveConflict(conflictGroupId: String, action: ConflictResolutionAction) = Unit
     }
 }

@@ -205,7 +205,16 @@ class FakeNoteDao : NoteDao {
     val notes = mutableMapOf<String, NoteEntity>()
 
     override fun observeAllNotes(): Flow<List<NoteEntity>> =
-        flowOf(notes.values.filter { !it.deleted }.sortedByDescending { it.updatedAt })
+        flowOf(notes.values.filter { !it.deleted && !it.isVault }.sortedByDescending { it.updatedAt })
+
+    override fun observeVaultNotes(): Flow<List<NoteEntity>> =
+        flowOf(notes.values.filter { !it.deleted && it.isVault }.sortedByDescending { it.updatedAt })
+
+    override suspend fun updateVaultFlag(noteId: String, isVault: Boolean) {
+        notes[noteId]?.let {
+            notes[noteId] = it.copy(isVault = isVault)
+        }
+    }
 
     override fun observeNoteById(noteId: String): Flow<NoteEntity?> =
         flowOf(notes[noteId])
