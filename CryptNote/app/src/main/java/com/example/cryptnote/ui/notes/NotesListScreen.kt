@@ -290,7 +290,7 @@ fun NotesListScreen(
 
     val animatedBorderColor by animateColorAsState(
         targetValue = if (uiState.isOnline) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error,
-        animationSpec = tween(durationMillis = 500),
+        animationSpec = tween(durationMillis = 250),
         label = "SystemOnlineBorderAnimation"
     )
 

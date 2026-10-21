@@ -239,6 +239,9 @@ export class SyncService {
       }
 
       return results;
+    }, {
+      maxWait: 10000,
+      timeout: 20000,
     });
   }
 
