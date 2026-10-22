@@ -14,6 +14,7 @@ import com.example.cryptnote.data.preferences.ThemeColor
 
 fun buildDarkColorScheme(color: ThemeColor): ColorScheme {
     val (primary, onPrimary, container, onContainer) = when (color) {
+        ThemeColor.WARM_ESPRESSO -> listOf(PaletteEspressoDarkPrimary, PaletteEspressoDarkOnPrimary, PaletteEspressoDarkContainer, PaletteEspressoDarkOnContainer)
         ThemeColor.CYBER_TEAL -> listOf(PaletteTealDarkPrimary, PaletteTealDarkOnPrimary, PaletteTealDarkContainer, PaletteTealDarkOnContainer)
         ThemeColor.NEON_BLUE -> listOf(PaletteBlueDarkPrimary, PaletteBlueDarkOnPrimary, PaletteBlueDarkContainer, PaletteBlueDarkOnContainer)
         ThemeColor.ELECTRIC_PURPLE -> listOf(PalettePurpleDarkPrimary, PalettePurpleDarkOnPrimary, PalettePurpleDarkContainer, PalettePurpleDarkOnContainer)
@@ -45,6 +46,7 @@ fun buildDarkColorScheme(color: ThemeColor): ColorScheme {
 
 fun buildLightColorScheme(color: ThemeColor): ColorScheme {
     val (primary, onPrimary, container, onContainer) = when (color) {
+        ThemeColor.WARM_ESPRESSO -> listOf(PaletteEspressoLightPrimary, PaletteEspressoLightOnPrimary, PaletteEspressoLightContainer, PaletteEspressoLightOnContainer)
         ThemeColor.CYBER_TEAL -> listOf(PaletteTealLightPrimary, PaletteTealLightOnPrimary, PaletteTealLightContainer, PaletteTealLightOnContainer)
         ThemeColor.NEON_BLUE -> listOf(PaletteBlueLightPrimary, PaletteBlueLightOnPrimary, PaletteBlueLightContainer, PaletteBlueLightOnContainer)
         ThemeColor.ELECTRIC_PURPLE -> listOf(PalettePurpleLightPrimary, PalettePurpleLightOnPrimary, PalettePurpleLightContainer, PalettePurpleLightOnContainer)
@@ -78,7 +80,7 @@ fun buildLightColorScheme(color: ThemeColor): ColorScheme {
 fun CryptNoteTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = false,
-    themeColor: ThemeColor = ThemeColor.CYBER_TEAL,
+    themeColor: ThemeColor = ThemeColor.WARM_ESPRESSO,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

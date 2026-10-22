@@ -22,6 +22,7 @@ enum class ThemeMode {
 }
 
 enum class ThemeColor(val displayName: String, val hexColor: Long) {
+    WARM_ESPRESSO("Espresso & Gold", 0xFFC88C42),
     CYBER_TEAL("Cyber Teal", 0xFF2DD4BF),
     NEON_BLUE("Neon Blue", 0xFF38BDF8),
     ELECTRIC_PURPLE("Electric Purple", 0xFFA855F7),
@@ -54,11 +55,11 @@ class ThemePreferencesManager @Inject constructor(
     }
 
     val themeColor: Flow<ThemeColor> = context.dataStore.data.map { preferences ->
-        val colorStr = preferences[themeColorKey] ?: ThemeColor.CYBER_TEAL.name
+        val colorStr = preferences[themeColorKey] ?: ThemeColor.WARM_ESPRESSO.name
         try {
             ThemeColor.valueOf(colorStr)
         } catch (_: Exception) {
-            ThemeColor.CYBER_TEAL
+            ThemeColor.WARM_ESPRESSO
         }
     }
 

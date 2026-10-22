@@ -61,7 +61,7 @@ class MainActivity : FragmentActivity() {
                 initialValue = ThemeMode.SYSTEM
             )
             val themeColor by themePreferencesManager.themeColor.collectAsStateWithLifecycle(
-                initialValue = com.example.cryptnote.data.preferences.ThemeColor.CYBER_TEAL
+                initialValue = com.example.cryptnote.data.preferences.ThemeColor.WARM_ESPRESSO
             )
             val dynamicColor by themePreferencesManager.dynamicColor.collectAsStateWithLifecycle(
                 initialValue = false
@@ -79,7 +79,7 @@ class MainActivity : FragmentActivity() {
                     !keySessionManager.isUnlocked.value -> Screen.VaultAuth.route
                     else -> Screen.NotesList.route
                 }
-                CryptoNoteNavGraph(targetDestination = targetDestination)
+                CryptoNoteNavGraph(targetDestination = targetDestination, themeColor = themeColor)
             }
         }
     }

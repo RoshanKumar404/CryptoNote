@@ -24,7 +24,17 @@ val CryptoOutlineLight = Color(0xFFCBD5E1)
 
 // --- Theme Palettes ---
 
-// 1. Cyber Teal (Default)
+// 1. Warm Espresso & Gold (Matching App Icon Theme)
+val PaletteEspressoDarkPrimary = Color(0xFFD99B53)
+val PaletteEspressoDarkOnPrimary = Color(0xFF241510)
+val PaletteEspressoDarkContainer = Color(0xFF4A332B)
+val PaletteEspressoDarkOnContainer = Color(0xFFF7EFE2)
+val PaletteEspressoLightPrimary = Color(0xFFC88C42)
+val PaletteEspressoLightOnPrimary = Color(0xFFFFFFFF)
+val PaletteEspressoLightContainer = Color(0xFFF7EFE2)
+val PaletteEspressoLightOnContainer = Color(0xFF32211C)
+
+// 2. Cyber Teal
 val PaletteTealDarkPrimary = Color(0xFF2DD4BF)
 val PaletteTealDarkOnPrimary = Color(0xFF003830)
 val PaletteTealDarkContainer = Color(0xFF005046)
@@ -34,7 +44,7 @@ val PaletteTealLightOnPrimary = Color(0xFFFFFFFF)
 val PaletteTealLightContainer = Color(0xFFCCFBF1)
 val PaletteTealLightOnContainer = Color(0xFF003731)
 
-// 2. Neon Blue
+// 3. Neon Blue
 val PaletteBlueDarkPrimary = Color(0xFF38BDF8)
 val PaletteBlueDarkOnPrimary = Color(0xFF003554)
 val PaletteBlueDarkContainer = Color(0xFF0369A1)
@@ -44,7 +54,7 @@ val PaletteBlueLightOnPrimary = Color(0xFFFFFFFF)
 val PaletteBlueLightContainer = Color(0xFFE0F2FE)
 val PaletteBlueLightOnContainer = Color(0xFF0C4A6E)
 
-// 3. Electric Purple
+// 4. Electric Purple
 val PalettePurpleDarkPrimary = Color(0xFFA855F7)
 val PalettePurpleDarkOnPrimary = Color(0xFF3B0764)
 val PalettePurpleDarkContainer = Color(0xFF6B21A8)
@@ -54,7 +64,7 @@ val PalettePurpleLightOnPrimary = Color(0xFFFFFFFF)
 val PalettePurpleLightContainer = Color(0xFFF3E8FF)
 val PalettePurpleLightOnContainer = Color(0xFF581C87)
 
-// 4. Emerald Matrix
+// 5. Emerald Matrix
 val PaletteEmeraldDarkPrimary = Color(0xFF34D399)
 val PaletteEmeraldDarkOnPrimary = Color(0xFF022C22)
 val PaletteEmeraldDarkContainer = Color(0xFF065F46)
@@ -64,7 +74,7 @@ val PaletteEmeraldLightOnPrimary = Color(0xFFFFFFFF)
 val PaletteEmeraldLightContainer = Color(0xFFD1FAE5)
 val PaletteEmeraldLightOnContainer = Color(0xFF064E3B)
 
-// 5. Sunset Amber
+// 6. Sunset Amber
 val PaletteAmberDarkPrimary = Color(0xFFFBBF24)
 val PaletteAmberDarkOnPrimary = Color(0xFF451A03)
 val PaletteAmberDarkContainer = Color(0xFF78350F)
@@ -74,7 +84,7 @@ val PaletteAmberLightOnPrimary = Color(0xFFFFFFFF)
 val PaletteAmberLightContainer = Color(0xFFFEF3C7)
 val PaletteAmberLightOnContainer = Color(0xFF78350F)
 
-// 6. Crimson Rose
+// 7. Crimson Rose
 val PaletteRoseDarkPrimary = Color(0xFFFB7185)
 val PaletteRoseDarkOnPrimary = Color(0xFF4C0519)
 val PaletteRoseDarkContainer = Color(0xFF881337)
