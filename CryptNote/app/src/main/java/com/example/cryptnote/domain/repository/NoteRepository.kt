@@ -32,6 +32,11 @@ interface NoteRepository {
     suspend fun deleteNote(id: String)
 
     /**
+     * Restores a soft-deleted note by ID and enqueues an update outbox entry.
+     */
+    suspend fun restoreNote(id: String)
+
+    /**
      * Observes notes involved in synchronization conflicts.
      */
     fun getConflictNotes(): Flow<List<Note>>

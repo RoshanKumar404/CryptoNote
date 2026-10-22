@@ -31,17 +31,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.cryptnote.R
+import com.example.cryptnote.data.preferences.ThemeColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
 fun SplashScreen(
     targetDestination: String,
+    themeColor: ThemeColor = ThemeColor.WARM_ESPRESSO,
     onAnimationComplete: (destination: String) -> Unit
 ) {
     val scale = remember { Animatable(0.3f) }
     val alpha = remember { Animatable(0f) }
     val titleAlpha = remember { Animatable(0f) }
+
+    val (bgColor, fgRes, titleColor, subtitleColor) = when (themeColor) {
+        ThemeColor.WARM_ESPRESSO -> Quadruple(Color(0xFFF7EFE2), R.drawable.ic_launcher_fg_espresso, Color(0xFF32211C), Color(0xFFC88C42))
+        ThemeColor.CYBER_TEAL -> Quadruple(Color(0xFF042F2C), R.drawable.ic_launcher_fg_teal, Color(0xFFE6FFFA), Color(0xFF2DD4BF))
+        ThemeColor.NEON_BLUE -> Quadruple(Color(0xFF072B42), R.drawable.ic_launcher_fg_blue, Color(0xFFF0F9FF), Color(0xFF38BDF8))
+        ThemeColor.ELECTRIC_PURPLE -> Quadruple(Color(0xFF260940), R.drawable.ic_launcher_fg_purple, Color(0xFFFAF5FF), Color(0xFFA855F7))
+        ThemeColor.EMERALD_MATRIX -> Quadruple(Color(0xFF032E22), R.drawable.ic_launcher_fg_emerald, Color(0xFFECFDF5), Color(0xFF34D399))
+        ThemeColor.SUNSET_AMBER -> Quadruple(Color(0xFF361603), R.drawable.ic_launcher_fg_amber, Color(0xFFFFFBEB), Color(0xFFFBBF24))
+        ThemeColor.CRIMSON_ROSE -> Quadruple(Color(0xFF3B0715), R.drawable.ic_launcher_fg_rose, Color(0xFFFFF1F2), Color(0xFFFB7185))
+    }
 
     LaunchedEffect(Unit) {
         launch {
@@ -73,7 +85,7 @@ fun SplashScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF7EFE2)),
+            .background(bgColor),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -86,11 +98,11 @@ fun SplashScreen(
                     .scale(scale.value)
                     .alpha(alpha.value)
                     .clip(RoundedCornerShape(32.dp))
-                    .background(Color(0xFFF7EFE2)),
+                    .background(bgColor),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                    painter = painterResource(id = fgRes),
                     contentDescription = "CryptoNote Logo",
                     tint = Color.Unspecified,
                     modifier = Modifier.size(130.dp)
@@ -109,7 +121,7 @@ fun SplashScreen(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
                     ),
-                    color = Color(0xFF32211C)
+                    color = titleColor
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
@@ -120,9 +132,11 @@ fun SplashScreen(
                         fontWeight = FontWeight.Medium,
                         letterSpacing = 0.5.sp
                     ),
-                    color = Color(0xFFC88C42)
+                    color = subtitleColor
                 )
             }
         }
     }
 }
+
+private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)

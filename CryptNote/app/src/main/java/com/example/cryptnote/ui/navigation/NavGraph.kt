@@ -9,6 +9,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.cryptnote.data.preferences.ThemeColor
 import com.example.cryptnote.ui.auth.AuthScreen
 import com.example.cryptnote.ui.auth.AuthViewModel
 import com.example.cryptnote.ui.auth.VaultAuthScreen
@@ -36,7 +37,8 @@ sealed class Screen(val route: String) {
 fun CryptoNoteNavGraph(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
-    targetDestination: String = Screen.Auth.route
+    targetDestination: String = Screen.Auth.route,
+    themeColor: ThemeColor = ThemeColor.WARM_ESPRESSO
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val lockManager = androidx.compose.runtime.remember {
@@ -88,6 +90,7 @@ fun CryptoNoteNavGraph(
         composable(route = Screen.Splash.route) {
             SplashScreen(
                 targetDestination = targetDestination,
+                themeColor = themeColor,
                 onAnimationComplete = { dest ->
                     navController.navigate(dest) {
                         popUpTo(Screen.Splash.route) { inclusive = true }

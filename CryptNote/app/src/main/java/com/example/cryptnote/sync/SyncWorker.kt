@@ -324,7 +324,7 @@ class SyncWorker @AssistedInject constructor(
                         }
 
                         val conflictGroupId = existing?.conflictGroupId
-                        val isVault = existing?.isVault ?: false
+                        var isVault = existing?.isVault ?: false
                         val syncStatus = if (conflictGroupId != null) "conflict" else "synced"
 
                         val currentKeyId = try {
@@ -337,6 +337,20 @@ class SyncWorker @AssistedInject constructor(
                             byteArrayOf(1, 1) + effectiveKeyIdBytes + nonceBytes + ciphertextBytes
                         } else {
                             envelopeBytes
+                        }
+
+                        if (existing == null && finalEnvelopeBytes != null && keySessionManager.isUnlocked.value && effectiveKeyIdBytes != null) {
+                            try {
+                                val encKey = keySessionManager.getEncryptionKey()
+                                val noteUuid = try { UUID.fromString(change.id) } catch (_: Exception) { UUID.nameUUIDFromBytes(change.id.toByteArray(Charsets.UTF_8)) }
+                                val openResult = com.example.cryptnote.security.EnvelopeV1.open(encKey, effectiveKeyIdBytes, noteUuid, change.version.toLong(), finalEnvelopeBytes)
+                                if (openResult is com.example.cryptnote.security.OpenResult.Opened) {
+                                    val content = json.decodeFromString(com.example.cryptnote.domain.model.NoteContent.serializer(), openResult.plaintext.toString(Charsets.UTF_8))
+                                    isVault = content.isVault
+                                }
+                            } catch (_: Exception) {
+                                isVault = false
+                            }
                         }
 
                         val noteEntity = NoteEntity(

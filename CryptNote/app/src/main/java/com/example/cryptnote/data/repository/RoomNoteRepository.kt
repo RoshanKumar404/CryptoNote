@@ -353,6 +353,60 @@ class RoomNoteRepository @Inject constructor(
         syncScheduler.scheduleImmediate()
     }
 
+    override suspend fun restoreNote(id: String) {
+        database.withTransaction {
+            val existing = noteDao.getNoteById(id) ?: return@withTransaction
+            outboxDao.deleteEntriesForNote(id)
+
+            val now = System.currentTimeMillis()
+            val targetVersion = existing.version + 1
+            val updatedEntity = existing.copy(
+                deleted = false,
+                version = targetVersion,
+                updatedAt = now,
+                syncStatus = "pending"
+            )
+            noteDao.insertNote(updatedEntity)
+
+            val envBytes = existing.envelope ?: (existing.nonce + existing.ciphertext)
+            if (envBytes.isNotEmpty()) {
+                val envelopeB64 = Base64.getEncoder().encodeToString(envBytes)
+                val nonceBytes = if (envBytes.size >= 22) envBytes.copyOfRange(10, 22) else ByteArray(0)
+                val cipherBytes = if (envBytes.size >= 22) envBytes.copyOfRange(22, envBytes.size) else ByteArray(0)
+                val nonceB64 = Base64.getEncoder().encodeToString(nonceBytes)
+
+                val envelopeB64Url = Base64.getUrlEncoder().withoutPadding().encodeToString(envBytes)
+                val keyIdB64Url = existing.keyId?.let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) } ?: ""
+                val checksumB64Url = existing.checksum?.let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) } ?: ""
+
+                val payloadJson = Json.encodeToString(
+                    OutboxPayloadDto.serializer(),
+                    OutboxPayloadDto(
+                        ciphertext = envelopeB64,
+                        nonce = nonceB64,
+                        envelope = envelopeB64Url,
+                        formatVersion = existing.formatVersion,
+                        keyId = keyIdB64Url,
+                        checksum = checksumB64Url
+                    )
+                )
+
+                val outboxEntity = OutboxEntity(
+                    opId = UUID.randomUUID().toString(),
+                    noteId = id,
+                    type = "update",
+                    baseVersion = existing.version,
+                    version = targetVersion,
+                    payload = payloadJson,
+                    status = "pending",
+                    createdAt = now
+                )
+                outboxDao.insertOutboxEntry(outboxEntity)
+            }
+        }
+        syncScheduler.scheduleImmediate()
+    }
+
     override suspend fun moveToVault(id: String, toVault: Boolean) {
         if (!keySessionManager.isUnlocked.value) {
             throw IllegalStateException("Vault is locked")
@@ -634,13 +688,6 @@ class RoomNoteRepository @Inject constructor(
             if (standardRes.isSuccess) {
                 val plaintextBytes = standardRes.getOrThrow()
                 scheduleMigrateOnRead(entity, plaintextBytes)
-                decryptDiagnostics.record(
-                    noteId = entity.id,
-                    keyIdPrefixHex = "legacy",
-                    formatVersion = 0,
-                    appVersion = appVersion,
-                    resultClass = "LegacySuccess"
-                )
                 return String(plaintextBytes, Charsets.UTF_8)
             }
 
@@ -660,13 +707,6 @@ class RoomNoteRepository @Inject constructor(
                 if (res.isSuccess) {
                     val plaintextBytes = res.getOrThrow()
                     scheduleMigrateOnRead(entity, plaintextBytes)
-                    decryptDiagnostics.record(
-                        noteId = entity.id,
-                        keyIdPrefixHex = "legacy",
-                        formatVersion = 0,
-                        appVersion = appVersion,
-                        resultClass = "LegacyCandidateSuccess"
-                    )
                     return String(plaintextBytes, Charsets.UTF_8)
                 }
             }
@@ -687,13 +727,6 @@ class RoomNoteRepository @Inject constructor(
                         if (res.isSuccess) {
                             val plaintextBytes = res.getOrThrow()
                             scheduleMigrateOnRead(entity, plaintextBytes)
-                            decryptDiagnostics.record(
-                                noteId = entity.id,
-                                keyIdPrefixHex = "legacy",
-                                formatVersion = 0,
-                                appVersion = appVersion,
-                                resultClass = "LegacySiblingSuccess"
-                            )
                             return String(plaintextBytes, Charsets.UTF_8)
                         }
                     }
@@ -706,26 +739,13 @@ class RoomNoteRepository @Inject constructor(
             try {
                 val jsonString = String(entity.ciphertext, Charsets.UTF_8)
                 jsonSerializer.decodeFromString(NoteContent.serializer(), jsonString)
-                decryptDiagnostics.record(
-                    noteId = entity.id,
-                    keyIdPrefixHex = "dev_plain",
-                    formatVersion = 0,
-                    appVersion = appVersion,
-                    resultClass = "DevPlaintext"
-                )
                 return jsonString
             } catch (_: Exception) {
                 // Not plaintext JSON
             }
         }
 
-        decryptDiagnostics.record(
-            noteId = entity.id,
-            keyIdPrefixHex = keyIdHex,
-            formatVersion = entity.formatVersion,
-            appVersion = appVersion,
-            resultClass = "Corrupt"
-        )
+        throw java.security.GeneralSecurityException("AEAD authentication tag mismatch or missing envelope")
         throw java.security.GeneralSecurityException("AEAD authentication tag mismatch or missing envelope")
     }
 
