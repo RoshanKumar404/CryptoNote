@@ -69,6 +69,7 @@ class ResolveConflictUseCaseTest {
         override fun getNoteById(id: String): Flow<Note?> = flowOf(null)
         override suspend fun saveNote(note: Note) {}
         override suspend fun deleteNote(id: String) {}
+        override suspend fun restoreNote(id: String) {}
         override fun getConflictNotes(): Flow<List<Note>> = flowOf(emptyList())
         override fun getConflictPairs(): Flow<List<ConflictPair>> = flowOf(emptyList())
         override fun getVaultNotes(): Flow<List<Note>> = flowOf(emptyList())

@@ -347,6 +347,7 @@ class NotesListViewModelTest {
         override fun getNoteById(id: String): Flow<Note?> = flowOf(notesFlow.value.find { it.id == id })
         override suspend fun saveNote(note: Note) { lastSavedNote = note }
         override suspend fun deleteNote(id: String) { lastDeletedNoteId = id }
+        override suspend fun restoreNote(id: String) {}
         override fun getConflictNotes(): Flow<List<Note>> = flowOf(emptyList())
         override fun getConflictPairs(): Flow<List<ConflictPair>> = conflictPairsFlow
         override fun getVaultNotes(): Flow<List<Note>> = vaultNotesFlow

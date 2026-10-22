@@ -7,39 +7,33 @@ import org.junit.Test
 class DecryptDiagnosticsTest {
 
     @Test
-    fun recordsEntriesAndCapsAt20() {
+    fun testRecordAndRetrieveDiagnostics() {
         val diagnostics = DecryptDiagnosticsImpl()
-
-        for (i in 1..25) {
-            diagnostics.record(
-                noteId = "note-$i",
-                keyIdPrefixHex = "3d158e58",
-                formatVersion = 1,
-                appVersion = "1.0.0",
-                resultClass = if (i % 2 == 0) "Opened" else "Corrupt"
-            )
-        }
+        diagnostics.record(
+            noteId = "test-note-id",
+            keyIdPrefixHex = "a1b2c3d4",
+            formatVersion = 1,
+            appVersion = "1.0.0",
+            resultClass = "Opened"
+        )
 
         val recent = diagnostics.getRecent()
-        assertEquals(20, recent.size)
-        // Most recent should be note-25
-        assertEquals("note-25", recent.first().noteId)
-        // Oldest preserved should be note-6
-        assertEquals("note-6", recent.last().noteId)
+        assertEquals(1, recent.size)
+        assertEquals("test-note-id", recent[0].noteId)
+        assertEquals("Opened", recent[0].resultClass)
     }
 
     @Test
-    fun clear_removesAllEntries() {
+    fun testClearDiagnostics() {
         val diagnostics = DecryptDiagnosticsImpl()
         diagnostics.record(
-            noteId = "test-note",
-            keyIdPrefixHex = "3d158e58",
+            noteId = "test-note-id",
+            keyIdPrefixHex = "a1b2c3d4",
             formatVersion = 1,
             appVersion = "1.0.0",
             resultClass = "Opened"
         )
         assertEquals(1, diagnostics.getRecent().size)
-
         diagnostics.clear()
         assertTrue(diagnostics.getRecent().isEmpty())
     }

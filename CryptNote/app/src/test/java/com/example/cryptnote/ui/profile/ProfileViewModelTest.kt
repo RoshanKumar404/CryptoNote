@@ -217,6 +217,7 @@ class ProfileViewModelTest {
         override fun getNoteById(id: String): Flow<Note?> = flowOf(notesFlow.value.find { it.id == id })
         override suspend fun saveNote(note: Note) = Unit
         override suspend fun deleteNote(id: String) = Unit
+        override suspend fun restoreNote(id: String) = Unit
         override fun getConflictNotes(): Flow<List<Note>> = flowOf(emptyList())
         override fun getConflictPairs(): Flow<List<ConflictPair>> = flowOf(emptyList())
         override fun getVaultNotes(): Flow<List<Note>> = flowOf(emptyList())

@@ -35,7 +35,6 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -313,31 +312,9 @@ fun ProfileScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     ProfileItemRow(
-                        icon = Icons.Default.VpnKey,
-                        label = "Salt Fingerprint",
-                        value = uiState.keyFingerprint,
-                        isMonospace = true,
-                        isCopyable = true,
-                        onCopy = {
-                            clipboardManager.setText(AnnotatedString(uiState.keyFingerprint))
-                            Toast.makeText(context, "Key Fingerprint copied", Toast.LENGTH_SHORT).show()
-                        }
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
-
-                    ProfileItemRow(
                         icon = Icons.Default.Security,
-                        label = "Payload Cipher",
-                        value = uiState.encryptionAlgorithm
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
-
-                    ProfileItemRow(
-                        icon = Icons.Default.Lock,
-                        label = "Key Derivation Function",
-                        value = uiState.kdfAlgorithm
+                        label = "Vault Protection",
+                        value = "AES-256-GCM Zero-Knowledge Active"
                     )
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
@@ -384,19 +361,6 @@ fun ProfileScreen(
                             count = uiState.syncedNotesCount.toString()
                         )
                     }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant)
-
-                    ProfileItemRow(
-                        icon = Icons.Default.CloudDone,
-                        label = "Sync Backend Endpoint",
-                        value = uiState.serverUrl,
-                        isCopyable = true,
-                        onCopy = {
-                            clipboardManager.setText(AnnotatedString(uiState.serverUrl))
-                            Toast.makeText(context, "Server URL copied", Toast.LENGTH_SHORT).show()
-                        }
-                    )
                 }
             }
 
@@ -455,6 +419,16 @@ fun ProfileScreen(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "CryptoNote v1.2.0 (Build 3) • Zero-Knowledge Vault",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
         }
