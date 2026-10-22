@@ -1,5 +1,6 @@
 package com.example.cryptnote.ui.notes
 
+import android.content.res.Configuration
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -13,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -80,6 +82,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -91,6 +94,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -231,7 +235,7 @@ fun NotesListScreen(
         )
     }
 
-    // Render Decrypt Diagnostics Sheet (NV-FE-9)
+    // Render Decrypt Diagnostics Sheet
     if (uiState.showDiagnosticsSheet) {
         DecryptDiagnosticsSheet(
             diagnostics = uiState.recentDiagnostics,
@@ -295,27 +299,44 @@ fun NotesListScreen(
         )
     }
 
+    val isDark = isSystemInDarkTheme()
+    val isSmallScreen = configuration.screenWidthDp < 360
+
+    val onlineBadgeBg = if (isDark) Color(0xFF1E3A2B) else Color(0xFFE8F5E9)
+    val onlineBadgeText = if (isDark) Color(0xFF81C784) else Color(0xFF2E7D32)
+
+    var previousIsOnline by rememberSaveable { mutableStateOf<Boolean?>(null) }
     val onlineColor = Color(0xFF4CAF50)
     val offlineColor = MaterialTheme.colorScheme.error
     var borderActiveColor by remember { mutableStateOf(Color.Transparent) }
 
     LaunchedEffect(uiState.isOnline) {
-        val targetColor = if (uiState.isOnline) onlineColor else offlineColor
-        val msg = if (uiState.isOnline) "Online" else "Offline"
-
-        snackbarHostState.currentSnackbarData?.dismiss()
-        borderActiveColor = targetColor
-
-        val job = launch {
-            snackbarHostState.showSnackbar(
-                message = msg,
-                duration = SnackbarDuration.Indefinite
-            )
+        if (previousIsOnline == null) {
+            // Initial composition / screen load - set state without playing toast or border animation
+            previousIsOnline = uiState.isOnline
+            return@LaunchedEffect
         }
-        delay(1000)
-        borderActiveColor = Color.Transparent
-        snackbarHostState.currentSnackbarData?.dismiss()
-        job.cancel()
+
+        if (previousIsOnline != uiState.isOnline) {
+            previousIsOnline = uiState.isOnline
+
+            val targetColor = if (uiState.isOnline) onlineColor else offlineColor
+            val msg = if (uiState.isOnline) "Online" else "Offline"
+
+            snackbarHostState.currentSnackbarData?.dismiss()
+            borderActiveColor = targetColor
+
+            val job = launch {
+                snackbarHostState.showSnackbar(
+                    message = msg,
+                    duration = SnackbarDuration.Indefinite
+                )
+            }
+            delay(1000)
+            borderActiveColor = Color.Transparent
+            snackbarHostState.currentSnackbarData?.dismiss()
+            job.cancel()
+        }
     }
 
     val animatedBorderColor by animateColorAsState(
@@ -341,124 +362,146 @@ fun NotesListScreen(
                                 imageVector = Icons.Default.Lock,
                                 contentDescription = "Encrypted Vault",
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(if (isSmallScreen) 18.dp else 22.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(if (isSmallScreen) 4.dp else 8.dp))
                             Text(
                                 text = "CryptoNote",
-                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                                style = if (isSmallScreen) {
+                                    MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                } else {
+                                    MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                                },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
-                            Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(if (isSmallScreen) 4.dp else 8.dp))
                             Surface(
                                 shape = CircleShape,
-                                color = if (uiState.isOnline) Color(0xFFE8F5E9) else MaterialTheme.colorScheme.errorContainer,
-                                modifier = Modifier.padding(start = 4.dp)
+                                color = if (uiState.isOnline) onlineBadgeBg else MaterialTheme.colorScheme.errorContainer,
+                                modifier = Modifier
+                                    .padding(start = 2.dp)
+                                    .semantics {
+                                        contentDescription = if (uiState.isOnline) "Online" else "Offline"
+                                    }
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                    modifier = Modifier.padding(
+                                        horizontal = if (isSmallScreen) 6.dp else 8.dp,
+                                        vertical = 2.dp
+                                    )
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(8.dp)
+                                            .size(if (isSmallScreen) 6.dp else 8.dp)
                                             .background(
-                                                color = animatedBorderColor,
+                                                color = if (uiState.isOnline) onlineColor else offlineColor,
                                                 shape = CircleShape
                                             )
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         text = if (uiState.isOnline) "Online" else "Offline",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                        color = if (uiState.isOnline) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onErrorContainer
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontSize = if (isSmallScreen) 10.sp else 11.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        ),
+                                        color = if (uiState.isOnline) onlineBadgeText else MaterialTheme.colorScheme.onErrorContainer,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }
                         }
                     },
                     actions = {
-                        // Conflicts Badge button
-                        if (uiState.conflictCount > 0) {
-                            IconButton(
-                                onClick = {
-                                    val firstGroupId = uiState.conflictPairs.firstOrNull()?.conflictGroupId ?: ""
-                                    viewModel.onConflictSelected(firstGroupId)
-                                },
-                                modifier = Modifier.semantics { contentDescription = "${uiState.conflictCount} conflicts detected" }
-                            ) {
-                                BadgedBox(
-                                    badge = {
-                                        Badge(containerColor = MaterialTheme.colorScheme.error) {
-                                            Text(uiState.conflictCount.toString())
-                                        }
-                                    }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(if (isSmallScreen) 0.dp else 2.dp)
+                        ) {
+                            // Conflicts Badge button
+                            if (uiState.conflictCount > 0) {
+                                IconButton(
+                                    onClick = {
+                                        val firstGroupId = uiState.conflictPairs.firstOrNull()?.conflictGroupId ?: ""
+                                        viewModel.onConflictSelected(firstGroupId)
+                                    },
+                                    modifier = Modifier
+                                        .size(if (isSmallScreen) 34.dp else 38.dp)
+                                        .semantics { contentDescription = "${uiState.conflictCount} conflicts detected" }
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Warning,
-                                        contentDescription = "Conflicts detected",
-                                        tint = MaterialTheme.colorScheme.error
-                                    )
+                                    BadgedBox(
+                                        badge = {
+                                            Badge(containerColor = MaterialTheme.colorScheme.error) {
+                                                Text(uiState.conflictCount.toString())
+                                            }
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Warning,
+                                            contentDescription = "Conflicts detected",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(if (isSmallScreen) 18.dp else 20.dp)
+                                        )
+                                    }
                                 }
                             }
-                        }
 
-                        // Decrypt Diagnostics Button (NV-FE-9)
-                        IconButton(
-                            onClick = { viewModel.toggleDiagnosticsSheet(true) },
-                            modifier = Modifier.semantics { contentDescription = "Decryption Diagnostics" }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Assessment,
-                                contentDescription = "Decryption Diagnostics",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                            // Theme Customizer Button
+                            IconButton(
+                                onClick = { showThemeDialog = true },
+                                modifier = Modifier
+                                    .size(if (isSmallScreen) 34.dp else 38.dp)
+                                    .semantics { contentDescription = "Theme and Appearance Settings" }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Palette,
+                                    contentDescription = "Theme and Appearance Settings",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(if (isSmallScreen) 18.dp else 20.dp)
+                                )
+                            }
 
-                        // Theme Customizer Button
-                        IconButton(
-                            onClick = { showThemeDialog = true },
-                            modifier = Modifier.semantics { contentDescription = "Theme and Appearance Settings" }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Palette,
-                                contentDescription = "Theme and Appearance Settings",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                            // Vault Lock/App Lock Button
+                            IconButton(
+                                onClick = {
+                                    if (uiState.currentTab == NotesTab.VAULT && !uiState.isVaultLocked) {
+                                        viewModel.lockVaultNow()
+                                    } else {
+                                        onLockVault()
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(if (isSmallScreen) 34.dp else 38.dp)
+                                    .semantics { contentDescription = "Lock Vault" }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = "Lock Vault",
+                                    tint = if (uiState.currentTab == NotesTab.VAULT && !uiState.isVaultLocked) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                    modifier = Modifier.size(if (isSmallScreen) 18.dp else 20.dp)
+                                )
+                            }
 
-                        // Vault Lock/App Lock Button
-                        IconButton(
-                            onClick = {
-                                if (uiState.currentTab == NotesTab.VAULT && !uiState.isVaultLocked) {
-                                    viewModel.lockVaultNow()
-                                } else {
-                                    onLockVault()
-                                }
-                            },
-                            modifier = Modifier.semantics { contentDescription = "Lock Vault" }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = "Lock Vault",
-                                tint = if (uiState.currentTab == NotesTab.VAULT && !uiState.isVaultLocked) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            )
-                        }
-
-                        // Profile / Account Button
-                        IconButton(
-                            onClick = onNavigateToProfile,
-                            modifier = Modifier.semantics { contentDescription = "Profile and Account Settings" }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AccountCircle,
-                                contentDescription = "Profile",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(26.dp)
-                            )
+                            // Profile / Account Button
+                            IconButton(
+                                onClick = onNavigateToProfile,
+                                modifier = Modifier
+                                    .size(if (isSmallScreen) 34.dp else 38.dp)
+                                    .semantics { contentDescription = "Profile and Account Settings" }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AccountCircle,
+                                    contentDescription = "Profile",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(if (isSmallScreen) 20.dp else 22.dp)
+                                )
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -705,6 +748,10 @@ private fun NotesListContent(
         }
 
         val isVaultTab = uiState.currentTab == NotesTab.VAULT
+        val configuration = LocalConfiguration.current
+        val isSmallScreen = configuration.screenWidthDp < 360
+        val isTablet = configuration.screenWidthDp >= 600
+        val horizontalHeaderPadding = if (isSmallScreen) 12.dp else if (isTablet) 24.dp else 16.dp
 
         // Greeting Header directly below App Name (Notes tab)
         if (!isVaultTab && uiState.searchQuery.isEmpty() && uiState.selectedTag == null) {
@@ -712,16 +759,18 @@ private fun NotesListContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onEditGreeting() }
-                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                    .padding(horizontal = horizontalHeaderPadding, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = getGreetingText(customGreetingName),
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold
-                        ),
+                        style = if (isSmallScreen) {
+                            MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        } else {
+                            MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                        },
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(2.dp))
@@ -778,7 +827,7 @@ private fun NotesListContent(
             ),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .padding(horizontal = horizontalHeaderPadding, vertical = 6.dp)
         ) {}
 
         // Tags Filter Row
@@ -787,7 +836,7 @@ private fun NotesListContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                    .padding(horizontal = horizontalHeaderPadding, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1106,7 +1155,7 @@ private fun getGreetingText(customName: String): String {
         in 17..22 -> "Good Evening"
         else -> "Good Night"
     }
-    return if (customName.isNotBlank()) "$greetingPrefix, $customName 👋" else "$greetingPrefix 👋"
+    return if (customName.isNotBlank()) "$greetingPrefix, $customName " else "$greetingPrefix "
 }
 
 private fun getFormattedDateDay(): String {

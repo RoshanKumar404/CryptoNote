@@ -63,7 +63,6 @@ fun DecryptionErrorDialog(
     onDismiss: () -> Unit
 ) {
     var showDeleteConfirmation by remember { mutableStateOf(false) }
-    var showDiagnostics by remember { mutableStateOf(false) }
 
     val failureType = when {
         note.title.contains("Unsupported Version", ignoreCase = true) ||
@@ -152,38 +151,6 @@ fun DecryptionErrorDialog(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-
-                    // Diagnostics Toggle
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { showDiagnostics = !showDiagnostics }
-                            .padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (showDiagnostics) "Hide Diagnostics" else "Show Diagnostics",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-
-                    if (showDiagnostics) {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Format Version: ${if (failureType == DecryptionFailureType.UNKNOWN_FORMAT) "2+" else "1"}", style = MaterialTheme.typography.labelSmall)
-                                Text("Key ID Prefix: ${note.id.take(8)}", style = MaterialTheme.typography.labelSmall)
-                                Text("App Version: 1.0 (Build 1)", style = MaterialTheme.typography.labelSmall)
-                                Text("Failure Class: ${failureType.name}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
                 }
             },
             confirmButton = {
@@ -208,10 +175,15 @@ fun DecryptionErrorDialog(
     }
 }
 
+fun formatTimestamp(millis: Long): String {
+    val formatter = SimpleDateFormat("MMM d, yyyy • h:mm a", Locale.getDefault())
+    return formatter.format(Date(millis))
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DecryptDiagnosticsSheet(
-    diagnostics: List<DecryptDiagnosticEntry>,
+    diagnostics: List<com.example.cryptnote.security.DecryptDiagnosticEntry>,
     onDismiss: () -> Unit
 ) {
     ModalBottomSheet(
@@ -320,9 +292,4 @@ fun DecryptDiagnosticsSheet(
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
-}
-
-fun formatTimestamp(millis: Long): String {
-    val formatter = SimpleDateFormat("MMM d, yyyy • h:mm a", Locale.getDefault())
-    return formatter.format(Date(millis))
 }

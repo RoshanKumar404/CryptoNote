@@ -8,8 +8,6 @@ import com.example.cryptnote.domain.model.Note
 import com.example.cryptnote.domain.repository.NoteRepository
 import com.example.cryptnote.domain.usecase.ResolveConflictUseCase
 import com.example.cryptnote.domain.usecase.SearchNotesUseCase
-import com.example.cryptnote.security.DecryptDiagnosticEntry
-import com.example.cryptnote.security.DecryptDiagnostics
 import com.example.cryptnote.security.KeySessionManager
 import com.example.cryptnote.security.VaultLock
 import com.example.cryptnote.security.VaultState
@@ -55,7 +53,7 @@ data class NotesListUiState(
     val showUnlockVaultDialog: Boolean = false,
     val unlockVaultError: String? = null,
     val showDiagnosticsSheet: Boolean = false,
-    val recentDiagnostics: List<DecryptDiagnosticEntry> = emptyList(),
+    val recentDiagnostics: List<com.example.cryptnote.security.DecryptDiagnosticEntry> = emptyList(),
     val isOnline: Boolean = true
 )
 
@@ -75,7 +73,7 @@ class NotesListViewModel @Inject constructor(
     private val syncScheduler: com.example.cryptnote.sync.SyncScheduler? = null,
     private val vaultLock: VaultLock? = null,
     private val keySessionManager: KeySessionManager? = null,
-    private val decryptDiagnostics: DecryptDiagnostics? = null,
+    private val decryptDiagnostics: com.example.cryptnote.security.DecryptDiagnostics? = null,
     private val biometricAuthManager: BiometricAuthManager? = null,
     private val biometricKeyManager: BiometricKeyManager? = null,
     private val connectivityObserver: com.example.cryptnote.sync.ConnectivityObserver? = null
@@ -213,6 +211,10 @@ class NotesListViewModel @Inject constructor(
         initialValue = NotesListUiState(isLoading = true)
     )
 
+    fun toggleDiagnosticsSheet(show: Boolean) {
+        _showDiagnosticsSheet.value = show
+    }
+
     fun selectTab(tab: NotesTab) {
         if (_currentTab.value == NotesTab.VAULT && tab != NotesTab.VAULT) {
             // Leaving the Vault route: per NV-FE-6, lock immediately
@@ -330,10 +332,6 @@ class NotesListViewModel @Inject constructor(
         }
     }
 
-    fun toggleDiagnosticsSheet(show: Boolean) {
-        _showDiagnosticsSheet.value = show
-    }
-
     fun refreshNotes() {
         viewModelScope.launch {
             _isRefreshing.value = true
@@ -414,7 +412,7 @@ class NotesListViewModel @Inject constructor(
     fun restoreLastDeletedNote() {
         val noteToRestore = lastDeletedNote ?: return
         viewModelScope.launch {
-            noteRepository.saveNote(noteToRestore)
+            noteRepository.restoreNote(noteToRestore.id)
             lastDeletedNote = null
         }
     }

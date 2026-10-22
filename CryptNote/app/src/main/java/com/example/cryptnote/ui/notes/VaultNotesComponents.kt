@@ -67,12 +67,12 @@ fun LockedVaultNoteCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(42.dp)
+                    .size(40.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
@@ -87,17 +87,12 @@ fun LockedVaultNoteCard(
             Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "🔒 Locked Vault Item",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Preview: ${note.ciphertextPreview ?: "encrypted envelope"}",
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace
+                    text = note.ciphertextPreview ?: "Encrypted Payload (AES-256-GCM)",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.SemiBold
                     ),
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -105,9 +100,10 @@ fun LockedVaultNoteCard(
                 Text(
                     text = "Updated: ${formatTimestamp(note.updatedAt)}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.8f)
+                    color = MaterialTheme.colorScheme.outline
                 )
             }
+            Spacer(modifier = Modifier.width(8.dp))
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = "Unlock",

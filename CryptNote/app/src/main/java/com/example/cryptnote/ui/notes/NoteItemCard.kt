@@ -92,7 +92,7 @@ fun SwipeableNoteCard(
         backgroundContent = {
             val direction = dismissState.dismissDirection
             val progress = dismissState.progress
-            if (progress > 0.5f) {
+            if (progress > 0.05f) {
                 when (direction) {
                     SwipeToDismissBoxValue.EndToStart -> {
                         // Left swipe: Delete

@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -35,12 +34,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.cryptnote.data.preferences.ThemeColor
 import com.example.cryptnote.data.preferences.ThemeMode
 import com.example.cryptnote.data.preferences.ThemePreferencesManager
+import com.example.cryptnote.ui.theme.AppIconManager
 import kotlinx.coroutines.launch
 
 @Composable
@@ -48,10 +49,11 @@ fun ThemeSettingsDialog(
     themePreferencesManager: ThemePreferencesManager,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val currentMode by themePreferencesManager.themeMode.collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM)
     val currentColor by themePreferencesManager.themeColor.collectAsStateWithLifecycle(
-        initialValue = ThemeColor.CYBER_TEAL
+        initialValue = ThemeColor.WARM_ESPRESSO
     )
     val dynamicColor by themePreferencesManager.dynamicColor.collectAsStateWithLifecycle(initialValue = false)
 
@@ -148,6 +150,7 @@ fun ThemeSettingsDialog(
                                     .clickable {
                                         coroutineScope.launch {
                                             themePreferencesManager.setThemeColor(color)
+                                            AppIconManager.changeAppIcon(context, color)
                                         }
                                     }
                                     .padding(vertical = 10.dp, horizontal = 10.dp),
