@@ -12,7 +12,7 @@ export const pushOperationSchema = z
     ciphertext: z.string().nullable().optional(),
     nonce: z.string().nullable().optional(),
     envelope: z.string().nullable().optional(),
-    format_version: z.number().int().min(0).max(1, { message: 'Unsupported format_version. Supported versions: 0, 1' }).optional(),
+    format_version: z.number().int().min(0).max(1, { message: 'Unsupported format_version. Supported versions: 0, 1' }).nullable().optional(),
     key_id: z.string().nullable().optional(),
     checksum: z.string().nullable().optional(),
   })

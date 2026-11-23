@@ -3,12 +3,6 @@ export interface TokenPayload {
   email: string;
 }
 
-export interface UserDto {
-  id: string;
-  email: string;
-  createdAt: string;
-}
-
 export interface AuthResponse {
   accessToken: string;
   refreshToken: string;

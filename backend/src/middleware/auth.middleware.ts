@@ -17,7 +17,7 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
   try {
     const payload = verifyAccessToken(token);
     request.user = payload;
-  } catch (err) {
+  } catch {
     return reply.status(401).send({
       statusCode: 401,
       error: 'Unauthorized',
