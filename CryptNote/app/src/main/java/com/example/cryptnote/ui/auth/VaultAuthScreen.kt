@@ -80,8 +80,8 @@ import dagger.hilt.android.EntryPointAccessors
 fun VaultAuthScreen(
     viewModel: VaultAuthViewModel,
     onAuthenticated: () -> Unit,
-    onSignOut: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSignOut: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current

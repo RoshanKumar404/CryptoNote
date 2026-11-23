@@ -1,10 +1,12 @@
 package com.example.cryptnote.data.repository
 
 import com.example.cryptnote.data.local.db.CryptNoteDatabase
+import com.example.cryptnote.data.local.db.entity.OutboxEntity
 import com.example.cryptnote.data.remote.api.AuthApi
 import com.example.cryptnote.data.remote.api.KeysApi
 import com.example.cryptnote.data.remote.model.AuthErrorResponseDto
 import com.example.cryptnote.data.remote.model.LoginRequestDto
+import com.example.cryptnote.data.remote.model.OutboxPayloadDto
 import com.example.cryptnote.data.remote.model.PutKeysRequestDto
 import com.example.cryptnote.data.remote.model.RegisterRequestDto
 import com.example.cryptnote.security.KeyLifecycleManager
@@ -28,6 +30,7 @@ import retrofit2.Response
 import java.io.IOException
 import java.security.MessageDigest
 import java.util.Base64
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -43,6 +46,7 @@ interface AuthRepository {
     suspend fun register(email: String, passphrase: CharArray): Result<Unit>
     suspend fun login(email: String, passphrase: CharArray): Result<Unit>
     suspend fun resetAccount(email: String, passphrase: CharArray): Result<Unit>
+    suspend fun changePassword(currentPassphrase: CharArray, newPassphrase: CharArray): Result<Unit>
     suspend fun logout()
     suspend fun checkSession(): Result<Unit>
 }
@@ -220,12 +224,14 @@ class AuthRepositoryImpl @Inject constructor(
             _authState.value = AuthState.Loading
 
             try {
-                // Wipe local DB if another account was previously active on this device
-                val previousEmail = tokenStorageManager.getUserEmail()
-                if (previousEmail != null && !previousEmail.equals(normalizedEmail, ignoreCase = true)) {
-                    withContext(Dispatchers.IO) {
-                        database?.clearAllTables()
-                    }
+                // Ensure local DB starts 100% clean on fresh login so no stale notes from prior sessions remain
+                withContext(Dispatchers.IO) {
+                    database?.clearAllTables()
+                    try {
+                        database?.syncStateDao()?.upsertSyncState(
+                            com.example.cryptnote.data.local.db.entity.SyncStateEntity(id = 1, lastPullCursor = 0L)
+                        )
+                    } catch (_: Exception) {}
                 }
 
                 val userSalt = deriveDeterministicUserSalt(normalizedEmail)
@@ -233,32 +239,9 @@ class AuthRepositoryImpl @Inject constructor(
                 val derived = cryptoManager.splitMasterKey(masterKey)
                 val authKeyHex = derived.authKey.toHex()
 
-                var response = authApi.login(
+                val response = authApi.login(
                     LoginRequestDto(email = normalizedEmail, password = authKeyHex)
                 )
-                var activeMasterKey = masterKey
-                var activeSalt = userSalt
-
-                // Fallback attempt: if backend returns 401 and device has an older random salt stored locally, try it
-                if (!response.isSuccessful && keyStorageManager.isSetup()) {
-                    val localSalt = keyStorageManager.getSalt()
-                    if (localSalt != null && !MessageDigest.isEqual(localSalt, userSalt)) {
-                        val fallbackMasterKey = cryptoManager.deriveMasterKey(passphrase, localSalt)
-                        val fallbackDerived = cryptoManager.splitMasterKey(fallbackMasterKey)
-                        val fallbackAuthHex = fallbackDerived.authKey.toHex()
-                        val fallbackResp = authApi.login(
-                            LoginRequestDto(email = normalizedEmail, password = fallbackAuthHex)
-                        )
-                        if (fallbackResp.isSuccessful) {
-                            response = fallbackResp
-                            activeMasterKey = fallbackMasterKey
-                            activeSalt = localSalt
-                            masterKey.fill(0)
-                        } else {
-                            fallbackMasterKey.fill(0)
-                        }
-                    }
-                }
 
                 if (response.isSuccessful && response.body() != null) {
                     val body = response.body()!!
@@ -281,8 +264,8 @@ class AuthRepositoryImpl @Inject constructor(
                                 val remoteKcvBase64 = keysBody.latest.kcv
                                 if (!remoteKcvBase64.isNullOrBlank()) {
                                     val remoteKcv = Base64.getDecoder().decode(remoteKcvBase64)
-                                    val computedKcv = keyLifecycleManager?.computeKcv(activeMasterKey)
-                                        ?: computeKcv(activeMasterKey)
+                                    val computedKcv = keyLifecycleManager?.computeKcv(masterKey)
+                                        ?: computeKcv(masterKey)
 
                                     if (!MessageDigest.isEqual(computedKcv, remoteKcv)) {
                                         keyCheckFailed = true
@@ -295,7 +278,7 @@ class AuthRepositoryImpl @Inject constructor(
                     }
 
                     if (keyCheckFailed) {
-                        activeMasterKey.fill(0)
+                        masterKey.fill(0)
                         tokenStorageManager.clearSession()
                         keyStorageManager.clear()
                         keySessionManager.lock()
@@ -308,14 +291,14 @@ class AuthRepositoryImpl @Inject constructor(
                         )
                     }
 
-                    // Initialize Keystore-wrapped vault with the verified master key
-                    keySessionManager.initializeWithMasterKey(activeMasterKey, activeSalt)
+                    // Initialize Keystore-wrapped vault with the verified master key & deterministic salt
+                    keySessionManager.initializeWithMasterKey(masterKey, userSalt)
 
                     // If server doesn't have keys yet, back them up now
                     try {
                         val keysResp = keysApi?.getKeys()
                         if (keysResp != null && keysResp.isSuccessful && keysResp.body()?.exists == false) {
-                            backupKeysToServer(activeSalt)
+                            backupKeysToServer(userSalt)
                         }
                     } catch (_: Exception) {}
 
@@ -329,7 +312,7 @@ class AuthRepositoryImpl @Inject constructor(
 
                     Result.success(Unit)
                 } else {
-                    activeMasterKey.fill(0)
+                    masterKey.fill(0)
                     _authState.value = AuthState.Unauthenticated
                     Result.failure(extractErrorMessage(response))
                 }
@@ -391,13 +374,139 @@ class AuthRepositoryImpl @Inject constructor(
             }
         }
 
+    override suspend fun changePassword(
+        currentPassphrase: CharArray,
+        newPassphrase: CharArray
+    ): Result<Unit> = withContext(Dispatchers.Default) {
+        val userEmail = tokenStorageManager.getUserEmail().orEmpty()
+        if (userEmail.isBlank()) {
+            return@withContext Result.failure(IllegalStateException("No authenticated user session"))
+        }
+
+        val userSalt = deriveDeterministicUserSalt(userEmail)
+        val currentMasterKey = cryptoManager.deriveMasterKey(currentPassphrase, userSalt)
+        val currentDerived = cryptoManager.splitMasterKey(currentMasterKey)
+
+        val activeKey = try { keySessionManager.getEncryptionKey() } catch (_: Exception) { null }
+        if (activeKey != null && !activeKey.contentEquals(currentDerived.encryptionKey)) {
+            currentMasterKey.fill(0)
+            return@withContext Result.failure(IllegalArgumentException("Current password is incorrect"))
+        }
+
+        val newMasterKey = cryptoManager.deriveMasterKey(newPassphrase, userSalt)
+        val newDerived = cryptoManager.splitMasterKey(newMasterKey)
+        val newAuthKeyHex = newDerived.authKey.toHex()
+        val newKeyId = cryptoManager.deriveKeyId(newMasterKey)
+
+        try {
+            withContext(Dispatchers.IO) {
+                database?.let { db ->
+                    val noteDao = db.noteDao()
+                    val outboxDao = db.outboxDao()
+                    val allEntities = noteDao.getAllActiveNotesSync()
+
+                    for (entity in allEntities) {
+                        val noteUuid = try { UUID.fromString(entity.id) } catch (_: Exception) { UUID.nameUUIDFromBytes(entity.id.toByteArray(Charsets.UTF_8)) }
+                        val currentKeyId = try { keySessionManager.getKeyId() } catch (_: Exception) { ByteArray(8) }
+
+                        val plaintext: String? = try {
+                            if (entity.envelope != null && entity.envelope.isNotEmpty()) {
+                                when (val openRes = com.example.cryptnote.security.EnvelopeV1.open(activeKey ?: currentDerived.encryptionKey, currentKeyId, noteUuid, entity.version.toLong(), entity.envelope)) {
+                                    is com.example.cryptnote.security.OpenResult.Opened -> String(openRes.plaintext, Charsets.UTF_8)
+                                    else -> null
+                                }
+                            } else null
+                        } catch (_: Exception) { null }
+
+                        if (plaintext != null) {
+                            val newEnvelope = com.example.cryptnote.security.EnvelopeV1.seal(
+                                key = newDerived.encryptionKey,
+                                keyId = newKeyId,
+                                noteId = noteUuid,
+                                plaintext = plaintext.toByteArray(Charsets.UTF_8)
+                            )
+                            val newCiphertextBytes = newEnvelope.copyOfRange(22, newEnvelope.size)
+                            val newNonceBytes = newEnvelope.copyOfRange(10, 22)
+                            val newKeyIdBytes = newEnvelope.copyOfRange(2, 10)
+
+                            val updatedEntity = entity.copy(
+                                ciphertext = newCiphertextBytes,
+                                nonce = newNonceBytes,
+                                envelope = newEnvelope,
+                                keyId = newKeyIdBytes,
+                                formatVersion = 1,
+                                syncStatus = "pending",
+                                updatedAt = System.currentTimeMillis()
+                            )
+                            noteDao.insertNote(updatedEntity)
+
+                            val payloadDto = OutboxPayloadDto(
+                                ciphertext = Base64.getEncoder().encodeToString(newCiphertextBytes),
+                                nonce = Base64.getEncoder().encodeToString(newNonceBytes),
+                                envelope = Base64.getEncoder().encodeToString(newEnvelope),
+                                formatVersion = 1,
+                                keyId = Base64.getEncoder().encodeToString(newKeyIdBytes)
+                            )
+                            val payloadJson = json.encodeToString(OutboxPayloadDto.serializer(), payloadDto)
+                            outboxDao.insertOutboxEntry(
+                                OutboxEntity(
+                                    opId = UUID.randomUUID().toString(),
+                                    noteId = entity.id,
+                                    type = "update",
+                                    baseVersion = entity.version,
+                                    version = entity.version + 1,
+                                    payload = payloadJson,
+                                    status = "pending",
+                                    createdAt = System.currentTimeMillis()
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            val response = authApi.resetAccount(
+                LoginRequestDto(email = userEmail, password = newAuthKeyHex)
+            )
+
+            currentMasterKey.fill(0)
+
+            if (response.isSuccessful && response.body() != null) {
+                val body = response.body()!!
+                keySessionManager.initializeWithMasterKey(newMasterKey, userSalt)
+                tokenStorageManager.saveSession(
+                    accessToken = body.accessToken,
+                    refreshToken = body.refreshToken,
+                    userId = body.user.id,
+                    email = body.user.email
+                )
+                backupKeysToServer(userSalt)
+                syncScheduler.scheduleImmediate()
+                newMasterKey.fill(0)
+                Result.success(Unit)
+            } else {
+                newMasterKey.fill(0)
+                Result.failure(extractErrorMessage(response))
+            }
+        } catch (e: Exception) {
+            currentMasterKey.fill(0)
+            newMasterKey.fill(0)
+            Result.failure(mapException(e))
+        }
+    }
+
     override suspend fun logout() {
         tokenStorageManager.clearSession()
         keyStorageManager.clear()
         keySessionManager.lock()
         syncScheduler.cancelAll()
         withContext(Dispatchers.IO) {
-            database?.clearAllTables()
+            try {
+                database?.clearAllTables()
+                database?.syncStateDao()?.upsertSyncState(
+                    com.example.cryptnote.data.local.db.entity.SyncStateEntity(id = 1, lastPullCursor = 0L)
+                )
+            } catch (_: Exception) {}
         }
         _authState.value = AuthState.Unauthenticated
     }

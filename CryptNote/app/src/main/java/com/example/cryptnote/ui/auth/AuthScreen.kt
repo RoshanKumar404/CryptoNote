@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,11 +31,13 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -100,10 +103,12 @@ fun AuthScreen(
         var resetPassphrase by remember(showForgotDialog) { mutableStateOf(uiState.passphrase) }
         var resetConfirmPassphrase by remember(showForgotDialog) { mutableStateOf(uiState.passphrase) }
         var isResetPassphraseVisible by remember { mutableStateOf(false) }
+        var isDataLossConfirmed by remember { mutableStateOf(false) }
 
-        val isResetValid = resetEmail.isNotBlank() &&
+        val isResetValid = resetEmail.contains("@") &&
                 resetPassphrase.length >= 8 &&
-                resetPassphrase == resetConfirmPassphrase
+                resetPassphrase == resetConfirmPassphrase &&
+                isDataLossConfirmed
 
         AlertDialog(
             onDismissRequest = { showForgotDialog = false },
@@ -112,14 +117,15 @@ fun AuthScreen(
                     Icon(
                         imageVector = Icons.Default.Lock,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Forgot Password / Reset",
+                        text = "Reset Account & Erase Notes",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
                     )
                 }
             },
@@ -130,23 +136,32 @@ fun AuthScreen(
                 ) {
                     Card(
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                            containerColor = MaterialTheme.colorScheme.errorContainer
                         ),
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Column(modifier = Modifier.padding(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "PERMANENT DATA LOSS WARNING",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Zero-Knowledge Note:",
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "Your master password never leaves this device, so our servers cannot email you a password reset link. Setting a new password below resets your authentication key so you can sign in.",
+                                text = "Resetting your password without your old password WILL PERMANENTLY ERASE ALL NOTES in your vault.\n\nBecause of Zero-Knowledge Encryption, notes encrypted with your old password cannot be decrypted with a new password.\n\nIf you know your current password, Sign In first and use Profile → Change Password to keep your notes safe.",
                                 style = MaterialTheme.typography.bodySmall,
                                 lineHeight = 15.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onErrorContainer
                             )
                         }
                     }
@@ -205,6 +220,26 @@ fun AuthScreen(
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { isDataLossConfirmed = !isDataLossConfirmed }
+                            .padding(vertical = 4.dp)
+                    ) {
+                        Checkbox(
+                            checked = isDataLossConfirmed,
+                            onCheckedChange = { isDataLossConfirmed = it }
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "I understand this will permanently erase all my existing notes.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -213,9 +248,10 @@ fun AuthScreen(
                         viewModel.resetAccount(resetEmail, resetPassphrase)
                         showForgotDialog = false
                     },
-                    enabled = isResetValid
+                    enabled = isResetValid,
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Reset & Sign In")
+                    Text("Erase & Reset Account")
                 }
             },
             dismissButton = {

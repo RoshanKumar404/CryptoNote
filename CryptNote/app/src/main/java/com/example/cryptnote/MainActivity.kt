@@ -22,6 +22,9 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
@@ -40,6 +43,9 @@ class MainActivity : FragmentActivity() {
 
     @Inject
     lateinit var themePreferencesManager: ThemePreferencesManager
+
+    @Inject
+    lateinit var syncManager: com.example.cryptnote.sync.SyncManager
 
     private val screenOffReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -67,6 +73,8 @@ class MainActivity : FragmentActivity() {
                 initialValue = false
             )
 
+            val isUnlocked by keySessionManager.isUnlocked.collectAsStateWithLifecycle()
+
             val isDark = when (themeMode) {
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
@@ -76,7 +84,7 @@ class MainActivity : FragmentActivity() {
             CryptNoteTheme(darkTheme = isDark, dynamicColor = dynamicColor, themeColor = themeColor) {
                 val targetDestination = when {
                     !tokenStorageManager.hasSession() -> Screen.Auth.route
-                    !keySessionManager.isUnlocked.value -> Screen.VaultAuth.route
+                    !isUnlocked -> Screen.VaultAuth.route
                     else -> Screen.NotesList.route
                 }
                 CryptoNoteNavGraph(targetDestination = targetDestination, themeColor = themeColor)
@@ -108,5 +116,12 @@ class MainActivity : FragmentActivity() {
     override fun onResume() {
         super.onResume()
         inactivityLockManager.onAppForegrounded()
+        if (tokenStorageManager.hasSession() && keySessionManager.isUnlocked.value) {
+            lifecycleScope.launch(Dispatchers.IO) {
+                try {
+                    syncManager.sync()
+                } catch (_: Exception) {}
+            }
+        }
     }
 }

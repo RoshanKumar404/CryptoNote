@@ -40,8 +40,8 @@ class VaultAuthViewModel @Inject constructor(
     private val keySessionManager: KeySessionManager,
     private val biometricAuthManager: BiometricAuthManager,
     private val biometricKeyManager: BiometricKeyManager,
-    private val tokenStorageManager: com.example.cryptnote.security.token.TokenStorageManager,
-    private val keyStorageManager: com.example.cryptnote.security.KeyStorageManager
+    private val authRepository: com.example.cryptnote.data.repository.AuthRepository,
+    private val syncManager: com.example.cryptnote.sync.SyncManager? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -104,10 +104,8 @@ class VaultAuthViewModel @Inject constructor(
     }
 
     fun signOutAndReset() {
-        tokenStorageManager.clearSession()
-        keyStorageManager.clear()
-        keySessionManager.lock()
         viewModelScope.launch {
+            authRepository.logout()
             _eventFlow.emit(VaultAuthEvent.SignOut)
         }
     }
@@ -137,6 +135,9 @@ class VaultAuthViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = false) }
             result.fold(
                 onSuccess = {
+                    viewModelScope.launch {
+                        try { syncManager?.sync() } catch (_: Exception) {}
+                    }
                     _eventFlow.emit(VaultAuthEvent.Authenticated)
                 },
                 onFailure = { error ->
@@ -200,6 +201,9 @@ class VaultAuthViewModel @Inject constructor(
                                 android.util.Log.e("VaultAuthViewModel", "Biometric initial setup failed", e)
                             }
                         }
+                        viewModelScope.launch {
+                            try { syncManager?.sync() } catch (_: Exception) {}
+                        }
                         _eventFlow.emit(VaultAuthEvent.Authenticated)
                     },
                     onFailure = { error ->
@@ -226,6 +230,9 @@ class VaultAuthViewModel @Inject constructor(
                             } catch (e: Exception) {
                                 android.util.Log.e("VaultAuthViewModel", "Biometric auto-enroll failed", e)
                             }
+                        }
+                        viewModelScope.launch {
+                            try { syncManager?.sync() } catch (_: Exception) {}
                         }
                         _eventFlow.emit(VaultAuthEvent.Authenticated)
                     },
