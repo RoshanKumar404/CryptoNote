@@ -221,6 +221,8 @@ class FakeNoteDao : NoteDao {
 
     override suspend fun getNoteById(noteId: String): NoteEntity? = notes[noteId]
 
+    override suspend fun getAllActiveNotesSync(): List<NoteEntity> = notes.values.filter { !it.deleted }
+
     override suspend fun getNotesBySyncStatus(status: String): List<NoteEntity> =
         notes.values.filter { it.syncStatus == status && !it.deleted }
 
@@ -235,6 +237,12 @@ class FakeNoteDao : NoteDao {
     override suspend fun softDeleteNote(noteId: String, updatedAt: Long) {
         notes[noteId]?.let {
             notes[noteId] = it.copy(deleted = true, syncStatus = "pending", updatedAt = updatedAt)
+        }
+    }
+
+    override suspend fun markRemoteDeleted(noteId: String, updatedAt: Long) {
+        notes[noteId]?.let {
+            notes[noteId] = it.copy(deleted = true, syncStatus = "synced", updatedAt = updatedAt)
         }
     }
 
