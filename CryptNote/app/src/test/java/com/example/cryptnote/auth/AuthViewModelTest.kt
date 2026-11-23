@@ -187,6 +187,8 @@ class AuthViewModelTest {
             }
         }
 
+        override suspend fun changePassword(currentPassphrase: CharArray, newPassphrase: CharArray): Result<Unit> = Result.success(Unit)
+
         override suspend fun logout() {
             _authState.value = AuthState.Unauthenticated
         }

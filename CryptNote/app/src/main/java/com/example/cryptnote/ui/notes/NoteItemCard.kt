@@ -66,6 +66,7 @@ fun SwipeableNoteCard(
     onMoveToVault: (() -> Unit)? = null
 ) {
     val dismissState = rememberSwipeToDismissBoxState(
+        positionalThreshold = { totalDistance -> totalDistance * 0.70f },
         confirmValueChange = { dismissValue ->
             when (dismissValue) {
                 SwipeToDismissBoxValue.EndToStart -> {
@@ -165,12 +166,12 @@ fun SwipeableNoteCard(
 fun NoteItemCard(
     note: Note,
     searchQuery: String,
-    isSelected: Boolean = false,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isSelected: Boolean = false,
     onTogglePin: () -> Unit = {},
     onSyncStatusClick: () -> Unit = {},
-    onMoveToVault: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    onMoveToVault: (() -> Unit)? = null
 ) {
     val isConflicted = note.conflictGroupId != null
     val highlightColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f)

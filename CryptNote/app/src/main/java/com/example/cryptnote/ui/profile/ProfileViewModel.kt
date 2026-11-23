@@ -139,4 +139,21 @@ class ProfileViewModel @Inject constructor(
             _eventFlow.emit(ProfileUiEvent.NavigateToAuth)
         }
     }
+
+    fun changePassword(currentPassphrase: String, newPassphrase: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            val result = authRepository.changePassword(
+                currentPassphrase = currentPassphrase.toCharArray(),
+                newPassphrase = newPassphrase.toCharArray()
+            )
+            _uiState.update { it.copy(isLoading = false) }
+            if (result.isSuccess) {
+                _eventFlow.emit(ProfileUiEvent.ShowMessage("Password changed & all notes re-encrypted!"))
+            } else {
+                val err = result.exceptionOrNull()?.message ?: "Failed to change password"
+                _eventFlow.emit(ProfileUiEvent.ShowMessage(err))
+            }
+        }
+    }
 }

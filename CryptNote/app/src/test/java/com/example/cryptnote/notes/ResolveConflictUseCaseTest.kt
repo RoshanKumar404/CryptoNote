@@ -83,5 +83,6 @@ class ResolveConflictUseCaseTest {
             lastResolvedGroupId = conflictGroupId
             lastResolvedAction = action
         }
+        override suspend fun clearAllLocalData() {}
     }
 }

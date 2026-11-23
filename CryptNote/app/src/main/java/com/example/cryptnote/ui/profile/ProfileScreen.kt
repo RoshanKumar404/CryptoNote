@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
@@ -29,12 +30,15 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -47,6 +51,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -67,6 +72,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -84,6 +93,12 @@ fun ProfileScreen(
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     var showSignOutDialog by remember { mutableStateOf(false) }
+    var showChangePasswordDialog by remember { mutableStateOf(false) }
+    var currentPassInput by remember { mutableStateOf("") }
+    var newPassInput by remember { mutableStateOf("") }
+    var confirmNewPassInput by remember { mutableStateOf("") }
+    var isCurrentPassVisible by remember { mutableStateOf(false) }
+    var isNewPassVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(viewModel.eventFlow) {
         viewModel.eventFlow.collect { event ->
@@ -138,6 +153,121 @@ fun ProfileScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showSignOutDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showChangePasswordDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showChangePasswordDialog = false
+                currentPassInput = ""
+                newPassInput = ""
+                confirmNewPassInput = ""
+            },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Change Account Password",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Your existing notes will be automatically re-encrypted with your new password.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = currentPassInput,
+                        onValueChange = { currentPassInput = it },
+                        label = { Text("Current Password") },
+                        singleLine = true,
+                        visualTransformation = if (isCurrentPassVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { isCurrentPassVisible = !isCurrentPassVisible }) {
+                                Icon(
+                                    imageVector = if (isCurrentPassVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = null
+                                )
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = newPassInput,
+                        onValueChange = { newPassInput = it },
+                        label = { Text("New Password (8+ chars)") },
+                        singleLine = true,
+                        visualTransformation = if (isNewPassVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { isNewPassVisible = !isNewPassVisible }) {
+                                Icon(
+                                    imageVector = if (isNewPassVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = null
+                                )
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = confirmNewPassInput,
+                        onValueChange = { confirmNewPassInput = it },
+                        label = { Text("Confirm New Password") },
+                        singleLine = true,
+                        visualTransformation = if (isNewPassVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        isError = confirmNewPassInput.isNotEmpty() && newPassInput != confirmNewPassInput,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    if (confirmNewPassInput.isNotEmpty() && newPassInput != confirmNewPassInput) {
+                        Text(
+                            text = "New passwords do not match",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                val isValid = currentPassInput.isNotBlank() && newPassInput.length >= 8 && newPassInput == confirmNewPassInput
+                Button(
+                    onClick = {
+                        viewModel.changePassword(currentPassInput, newPassInput)
+                        showChangePasswordDialog = false
+                        currentPassInput = ""
+                        newPassInput = ""
+                        confirmNewPassInput = ""
+                    },
+                    enabled = isValid
+                ) {
+                    Text("Re-encrypt & Change", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showChangePasswordDialog = false
+                    currentPassInput = ""
+                    newPassInput = ""
+                    confirmNewPassInput = ""
+                }) {
                     Text("Cancel")
                 }
             }
@@ -367,6 +497,26 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Action Buttons
+            Button(
+                onClick = { showChangePasswordDialog = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Change Account Password",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+            }
+
             OutlinedButton(
                 onClick = viewModel::lockVault,
                 modifier = Modifier
@@ -423,7 +573,7 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "CryptoNote v1.2.0 (Build 3) • Zero-Knowledge Vault",
+                text = "CryptoNote v1.3.0 (Build 4) • Zero-Knowledge Vault",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.fillMaxWidth(),

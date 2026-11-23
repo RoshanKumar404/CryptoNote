@@ -366,6 +366,11 @@ class NotesListViewModelTest {
             lastResolvedGroupId = conflictGroupId
             lastResolvedAction = action
         }
+        override suspend fun clearAllLocalData() {
+            notesFlow.value = emptyList()
+            vaultNotesFlow.value = emptyList()
+            conflictPairsFlow.value = emptyList()
+        }
     }
 
     private class FakeAuthRepository : com.example.cryptnote.data.repository.AuthRepository {
@@ -380,6 +385,7 @@ class NotesListViewModelTest {
         override suspend fun register(email: String, passphrase: CharArray): Result<Unit> = Result.success(Unit)
         override suspend fun login(email: String, passphrase: CharArray): Result<Unit> = Result.success(Unit)
         override suspend fun resetAccount(email: String, passphrase: CharArray): Result<Unit> = Result.success(Unit)
+        override suspend fun changePassword(currentPassphrase: CharArray, newPassphrase: CharArray): Result<Unit> = Result.success(Unit)
         override suspend fun logout() {
             loggedOut = true
             _authState.value = com.example.cryptnote.data.repository.AuthState.Unauthenticated

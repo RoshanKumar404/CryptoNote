@@ -71,6 +71,8 @@ class NotesListViewModel @Inject constructor(
     private val searchNotesUseCase: SearchNotesUseCase,
     private val resolveConflictUseCase: ResolveConflictUseCase,
     private val syncScheduler: com.example.cryptnote.sync.SyncScheduler? = null,
+    private val syncManager: com.example.cryptnote.sync.SyncManager? = null,
+    private val tokenStorageManager: com.example.cryptnote.security.token.TokenStorageManager? = null,
     private val vaultLock: VaultLock? = null,
     private val keySessionManager: KeySessionManager? = null,
     private val decryptDiagnostics: com.example.cryptnote.security.DecryptDiagnostics? = null,
@@ -140,6 +142,10 @@ class NotesListViewModel @Inject constructor(
     }
 
     init {
+        // 1. Initial immediate sync when opening notes screen
+        refreshNotes()
+
+        // 2. Refresh on network reconnect
         connectivityObserver?.let { observer ->
             viewModelScope.launch {
                 var prevOnline: Boolean? = null
@@ -148,6 +154,18 @@ class NotesListViewModel @Inject constructor(
                         refreshNotes()
                     }
                     prevOnline = isOnline
+                }
+            }
+        }
+
+        // 3. Periodic polling ticker while viewing notes in foreground (every 4 seconds)
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(4000)
+                if (tokenStorageManager?.hasSession() == true && !_isRefreshing.value) {
+                    try {
+                        syncManager?.sync() ?: syncScheduler?.scheduleImmediate()
+                    } catch (_: Exception) {}
                 }
             }
         }
@@ -335,9 +353,17 @@ class NotesListViewModel @Inject constructor(
     fun refreshNotes() {
         viewModelScope.launch {
             _isRefreshing.value = true
-            syncScheduler?.scheduleImmediate()
-            kotlinx.coroutines.delay(1200)
-            _isRefreshing.value = false
+            try {
+                if (syncManager != null) {
+                    syncManager.sync()
+                } else {
+                    syncScheduler?.scheduleImmediate()
+                    kotlinx.coroutines.delay(1200)
+                }
+            } catch (_: Exception) {
+            } finally {
+                _isRefreshing.value = false
+            }
         }
     }
 

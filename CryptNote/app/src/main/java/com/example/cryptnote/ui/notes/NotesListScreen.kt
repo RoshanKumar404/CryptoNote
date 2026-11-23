@@ -111,10 +111,10 @@ import kotlinx.coroutines.launch
 fun NotesListScreen(
     viewModel: NotesListViewModel,
     onNavigateToEditor: (noteId: String) -> Unit,
+    modifier: Modifier = Modifier,
     onNavigateToProfile: () -> Unit = {},
     onLockVault: () -> Unit = {},
-    onLogout: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onLogout: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
