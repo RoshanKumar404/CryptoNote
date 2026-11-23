@@ -112,12 +112,22 @@ export class SyncService {
           if (op.base_version !== 0 || op.version !== 1 || existingNote !== null) {
             isConflict = true;
           }
-        } else {
-          // update / delete require note to exist, not already deleted,
+        } else if (op.type === 'delete') {
+          // delete requires note to exist, not already deleted,
           // base_version === stored version, and version === base_version + 1
           if (
             !existingNote ||
             existingNote.deleted ||
+            existingNote.version !== op.base_version ||
+            op.version !== op.base_version + 1
+          ) {
+            isConflict = true;
+          }
+        } else if (op.type === 'update') {
+          // update requires note to exist, base_version === stored version,
+          // and version === base_version + 1 (allows updating or restoring soft-deleted notes)
+          if (
+            !existingNote ||
             existingNote.version !== op.base_version ||
             op.version !== op.base_version + 1
           ) {

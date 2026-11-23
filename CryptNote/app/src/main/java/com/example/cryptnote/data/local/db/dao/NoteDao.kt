@@ -49,6 +49,12 @@ interface NoteDao {
     suspend fun getNoteById(noteId: String): NoteEntity?
 
     /**
+     * Get all active non-deleted notes synchronously for vault re-encryption.
+     */
+    @Query("SELECT * FROM notes WHERE deleted = 0")
+    suspend fun getAllActiveNotesSync(): List<NoteEntity>
+
+    /**
      * Get all notes that have a specific sync status.
      */
     @Query("SELECT * FROM notes WHERE sync_status = :status AND deleted = 0")
@@ -73,6 +79,12 @@ interface NoteDao {
      */
     @Query("UPDATE notes SET deleted = 1, sync_status = 'pending', updated_at = :updatedAt WHERE id = :noteId")
     suspend fun softDeleteNote(noteId: String, updatedAt: Long = System.currentTimeMillis())
+
+    /**
+     * Mark a note as deleted when pulled from remote sync (synced tombstone).
+     */
+    @Query("UPDATE notes SET deleted = 1, sync_status = 'synced', updated_at = :updatedAt WHERE id = :noteId")
+    suspend fun markRemoteDeleted(noteId: String, updatedAt: Long = System.currentTimeMillis())
 
     /**
      * Update the sync status of a specific note.

@@ -69,4 +69,10 @@ interface NoteRepository {
         conflictGroupId: String,
         action: com.example.cryptnote.domain.model.ConflictResolutionAction
     )
+
+    /**
+     * Clears all local database tables (notes, outbox, sync_state, quarantine)
+     * and resets the sync pull cursor to 0.
+     */
+    suspend fun clearAllLocalData()
 }

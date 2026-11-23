@@ -25,14 +25,21 @@ import javax.inject.Singleton
 object NetworkModule {
 
     /**
-     * Paste your Render backend URL here once deployed (e.g., "https://cryptonote-backend.onrender.com/").
+     * Paste your cloud backend URL here once deployed.
+     * Examples:
+     * - Fly.io: "https://cryptonote-backend.fly.dev"
+     * - Render: "https://cryptonote-backend.onrender.com"
+     *
      * When blank, it automatically defaults to emulator loopback or adb reverse port forwarding for local testing.
      */
-    const val RENDER_BASE_URL: String = "https://cryptonote-backend.onrender.com"
+    const val BACKEND_BASE_URL: String = "https://cryptonote-backend.fly.dev"
+
+    const val RENDER_BASE_URL: String = BACKEND_BASE_URL
 
     fun getBaseUrl(): String {
-        if (RENDER_BASE_URL.isNotBlank()) {
-            return if (RENDER_BASE_URL.endsWith("/")) RENDER_BASE_URL else "$RENDER_BASE_URL/"
+        val targetUrl = BACKEND_BASE_URL.ifBlank { RENDER_BASE_URL }
+        if (targetUrl.isNotBlank()) {
+            return if (targetUrl.endsWith("/")) targetUrl else "$targetUrl/"
         }
 
         val isEmulator = android.os.Build.FINGERPRINT.startsWith("generic")

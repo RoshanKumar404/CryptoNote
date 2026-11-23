@@ -8,6 +8,7 @@ import com.example.cryptnote.data.local.db.dao.QuarantineDao
 import com.example.cryptnote.data.local.db.entity.NoteEntity
 import com.example.cryptnote.data.local.db.entity.OutboxEntity
 import com.example.cryptnote.data.local.db.entity.QuarantineEntity
+import com.example.cryptnote.data.local.db.entity.SyncStateEntity
 import com.example.cryptnote.data.remote.model.OutboxPayloadDto
 import com.example.cryptnote.domain.model.ConflictPair
 import com.example.cryptnote.domain.model.ConflictResolutionAction
@@ -27,6 +28,7 @@ import com.example.cryptnote.sync.SyncScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -57,12 +59,24 @@ class RoomNoteRepository @Inject constructor(
     private val cryptoManager: CryptoManager,
     private val keySessionManager: KeySessionManager,
     private val syncScheduler: SyncScheduler,
+    private val syncManager: com.example.cryptnote.sync.SyncManager,
     private val vaultLock: VaultLock,
     private val decryptDiagnostics: DecryptDiagnostics
 ) : NoteRepository {
 
     private val repositoryScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val migratingNotes = ConcurrentHashMap.newKeySet<String>()
+
+    private fun triggerSync() {
+        try {
+            syncScheduler.scheduleImmediate()
+        } catch (_: Exception) {}
+        repositoryScope.launch {
+            try {
+                syncManager.sync()
+            } catch (_: Exception) {}
+        }
+    }
 
     override fun getAllNotes(): Flow<List<Note>> {
         return noteDao.observeAllNotes().map { entities ->
@@ -180,7 +194,7 @@ class RoomNoteRepository @Inject constructor(
                 }
             }
         }
-        syncScheduler.scheduleImmediate()
+        triggerSync()
     }
 
     override suspend fun saveNote(note: Note) {
@@ -297,7 +311,7 @@ class RoomNoteRepository @Inject constructor(
                 outboxDao.insertOutboxEntry(outboxEntity)
             }
         }
-        syncScheduler.scheduleImmediate()
+        triggerSync()
     }
 
     override suspend fun deleteNote(id: String) {
@@ -350,7 +364,7 @@ class RoomNoteRepository @Inject constructor(
                 outboxDao.insertOutboxEntry(outboxEntity)
             }
         }
-        syncScheduler.scheduleImmediate()
+        triggerSync()
     }
 
     override suspend fun restoreNote(id: String) {
@@ -404,7 +418,7 @@ class RoomNoteRepository @Inject constructor(
                 outboxDao.insertOutboxEntry(outboxEntity)
             }
         }
-        syncScheduler.scheduleImmediate()
+        triggerSync()
     }
 
     override suspend fun moveToVault(id: String, toVault: Boolean) {
@@ -494,7 +508,7 @@ class RoomNoteRepository @Inject constructor(
                 outboxDao.insertOutboxEntry(outboxEntity)
             }
         }
-        syncScheduler.scheduleImmediate()
+        triggerSync()
     }
 
     override suspend fun quarantineNote(id: String, reason: String) {
@@ -590,7 +604,7 @@ class RoomNoteRepository @Inject constructor(
                     )
                     outboxDao.insertOutboxEntry(outboxEntity)
                 }
-                syncScheduler.scheduleImmediate()
+                triggerSync()
             } catch (_: Exception) {
                 // Ignore migration failure
             } finally {
@@ -836,5 +850,16 @@ class RoomNoteRepository @Inject constructor(
             isVault = noteIsVault,
             ciphertextPreview = preview
         )
+    }
+
+    override suspend fun clearAllLocalData() {
+        withContext(Dispatchers.IO) {
+            database.clearAllTables()
+            try {
+                database.syncStateDao().upsertSyncState(
+                    SyncStateEntity(id = 1, lastPullCursor = 0L)
+                )
+            } catch (_: Exception) {}
+        }
     }
 }
