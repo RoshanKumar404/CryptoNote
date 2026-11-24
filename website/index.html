@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- Primary Meta Tags -->
+    <title>CryptoNote — Zero-Knowledge E2EE Notes & Vault for Android</title>
+    <meta name="title" content="CryptoNote — Zero-Knowledge E2EE Notes & Vault for Android" />
+    <meta name="description" content="Offline-first, end-to-end encrypted notes and security vault for Android. Client-side Argon2id key derivation, AES-256-GCM Envelope V1 packaging, anti-forensic memory zeroization, and real-time deterministic sync." />
+    <meta name="keywords" content="encrypted notes, zero-knowledge, E2EE, privacy vault, android secure notes, offline-first sync, argon2id, aes-256-gcm, anti-forensic, fly.io" />
+    <meta name="author" content="CryptoNote Project" />
+    <meta name="theme-color" content="#0B0F17" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://roshankumar404.github.io/CryptoNote/" />
+    <meta property="og:title" content="CryptoNote — Zero-Knowledge E2EE Notes & Vault" />
+    <meta property="og:description" content="Your notes, sealed on-device before touching storage or cloud. Dual-zone vault, anti-forensic hardening, and deterministic sync." />
+    <meta property="og:image" content="assets/showcase-notes-vault.png" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:title" content="CryptoNote — Zero-Knowledge E2EE Notes & Vault" />
+    <meta property="twitter:description" content="Client-side Argon2id, AES-256-GCM Envelope V1, and offline-first deterministic sync for Android." />
+    <meta property="twitter:image" content="assets/showcase-notes-vault.png" />
+
+    <!-- Favicon (Warm Gold Shield) -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23D99B53' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/%3E%3Cpath d='M12 8v4'/%3E%3Cpath d='M12 16h.01'/%3E%3C/svg%3E" />
+
+    <!-- Typography (Google Fonts: Inter & JetBrains Mono) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+    <!-- Main Stylesheet -->
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body class="palette-espresso">
+
+    <!-- Ambient Transparent Background Video Playing in the Background -->
+    <div class="ambient-video-bg-container" aria-hidden="true">
+        <video id="ambient-video-player" class="ambient-video-elem" autoplay muted loop playsinline poster="assets/showcase-notes-vault.png">
+            <source src="assets/app-demo-video.mp4" type="video/mp4" />
+        </video>
+        <div class="ambient-video-overlay-tint"></div>
+    </div>
+
+    <!-- Header & Navigation -->
+    <header class="header">
+        <div class="nav-container">
+            <a href="#" class="logo-wrap" aria-label="CryptoNote Home">
+                <svg class="logo-icon-svg" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    <path d="M12 8v4"></path>
+                    <path d="M12 16h.01"></path>
+                </svg>
+                <span>CryptoNote</span>
+                <span class="logo-badge">v1.4.0</span>
+            </a>
+
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#dual-zone">Dual-Zone</a></li>
+                <li><a href="#video-demo">App Video</a></li>
+                <li><a href="#showcase">UI Gallery</a></li>
+                <li><a href="#crypto-playground">Crypto Lab</a></li>
+                <li><a href="#architecture">Architecture</a></li>
+                <li><a href="#faq">FAQ</a></li>
+            </ul>
+
+            <div class="nav-actions">
+                <!-- Theme Palette Selector Dropdown -->
+                <div class="palette-dropdown-wrap">
+                    <button id="palette-dropdown-btn" class="palette-trigger-btn" aria-label="Select accent theme palette" title="Select theme palette">
+                        <span class="palette-active-dot"></span>
+                        <span class="palette-btn-label">Palette</span>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                    <div id="palette-dropdown-menu" class="palette-dropdown-menu">
+                        <button class="palette-dropdown-item active" data-palette="espresso">
+                            <span class="palette-item-swatch" style="background:#D99B53;"></span>
+                            <span>Warm Espresso</span>
+                        </button>
+                        <button class="palette-dropdown-item" data-palette="teal">
+                            <span class="palette-item-swatch" style="background:#2DD4BF;"></span>
+                            <span>Cyber Teal</span>
+                        </button>
+                        <button class="palette-dropdown-item" data-palette="blue">
+                            <span class="palette-item-swatch" style="background:#38BDF8;"></span>
+                            <span>Neon Blue</span>
+                        </button>
+                        <button class="palette-dropdown-item" data-palette="purple">
+                            <span class="palette-item-swatch" style="background:#A855F7;"></span>
+                            <span>Electric Purple</span>
+                        </button>
+                        <button class="palette-dropdown-item" data-palette="emerald">
+                            <span class="palette-item-swatch" style="background:#34D399;"></span>
+                            <span>Emerald Matrix</span>
+                        </button>
+                        <button class="palette-dropdown-item" data-palette="amber">
+                            <span class="palette-item-swatch" style="background:#FBBF24;"></span>
+                            <span>Sunset Amber</span>
+                        </button>
+                        <button class="palette-dropdown-item" data-palette="rose">
+                            <span class="palette-item-swatch" style="background:#FB7185;"></span>
+                            <span>Crimson Rose</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Ambient Video Motion Dimmer / Pause Toggle -->
+                <button id="ambient-video-toggle" class="btn-icon" aria-label="Toggle ambient background video" title="Toggle background video motion">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                </button>
+
+                <!-- Light / Dark Mode Toggle -->
+                <button id="theme-toggle" class="btn-icon" aria-label="Toggle dark/light mode" title="Toggle theme">
+                    <!-- SVG populated by script.js -->
+                </button>
+
+                <!-- GitHub Source Link -->
+                <a href="https://github.com/RoshanKumar404/CryptoNote" target="_blank" rel="noopener noreferrer" class="btn-icon" title="View Source on GitHub" aria-label="GitHub Repository">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                    </svg>
+                </a>
+
+                <!-- Download Primary Action -->
+                <a href="#download" class="btn-primary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    <span>Download APK</span>
+                </a>
+
+                <button class="mobile-toggle" aria-label="Open mobile menu">☰</button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Hero Section -->
+        <section class="hero-section">
+            <div class="container">
+                <div class="hero-grid">
+                    <div class="hero-text-col">
+                        <div class="hero-pill">
+                            <span class="pulse-dot"></span>
+                            <span>Zero-Knowledge E2EE • Material 3 Android Client</span>
+                        </div>
+                        <h1 class="hero-title">
+                            Your Thoughts, Sealed in <span class="gradient-text">Pure Math.</span>
+                        </h1>
+                        <p class="hero-lead">
+                            CryptoNote seals all notes, titles, and tags on your Android device with <strong>Argon2id</strong> and <strong>AES-256-GCM Envelope V1</strong> before anything hits the network. The sync server is mathematically blind.
+                        </p>
+                        <div class="hero-cta-group">
+                            <a href="#download" class="btn-primary" style="padding: 0.85rem 1.8rem; font-size: 1.05rem;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="7 10 12 15 17 10"></polyline>
+                                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                                </svg>
+                                <span>Download APK (v1.4.0)</span>
+                            </a>
+                            <a href="#video-demo" class="btn-secondary" style="padding: 0.85rem 1.6rem; font-size: 1.05rem;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                </svg>
+                                <span>Watch Video Demo</span>
+                            </a>
+                        </div>
+                        <div class="hero-badges-row">
+                            <div class="hero-trust-item">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                <span>Envelope V1 AAD Sealed</span>
+                            </div>
+                            <div class="hero-trust-item">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                <span>Hardware Biometric Keystore</span>
+                            </div>
+                            <div class="hero-trust-item">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                                <span>Multi-Device Real-Time Sync</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3D Smartphone Device Mockup -->
+                    <div class="hero-phone-container">
+                        <div class="floating-badge badge-top-right">
+                            <span class="pulse-dot"></span>
+                            <span>FLAG_SECURE Anti-Spy Active</span>
+                        </div>
+                        <div class="floating-badge badge-bottom-left">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="2.5"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                            <span>60s Memory Zeroization</span>
+                        </div>
+
+                        <div class="phone-device-bezel">
+                            <div class="phone-camera-punch"></div>
+                            <div class="phone-screen-content">
+                                <img id="hero-phone-screen" class="phone-screen-img" src="assets/showcase-notes-vault.png" alt="CryptoNote Android UI Showcase" />
+                            </div>
+
+                            <!-- Screen switcher pills on device -->
+                            <div class="hero-screen-switcher">
+                                <button class="screen-switcher-btn active" data-screen="assets/showcase-notes-vault.png">Notes & Vault</button>
+                                <button class="screen-switcher-btn" data-screen="assets/showcase-vault-biometric.png">Biometrics</button>
+                                <button class="screen-switcher-btn" data-screen="assets/showcase-editor-markdown.png">Markdown</button>
+                                <button class="screen-switcher-btn" data-screen="assets/showcase-auth-register.png">Setup</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Video Walkthrough Showcase Section -->
+        <section id="video-demo" class="video-showcase-section">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-tag">Video Walkthrough</span>
+                    <h2 class="section-title">See CryptoNote in Action</h2>
+                    <p class="section-subtitle">
+                        Watch how the Android client seamlessly handles biometric vault unlocking, markdown note authoring, and instant cryptographic synchronization.
+                    </p>
+                </div>
+
+                <div class="video-container-card">
+                    <div class="video-player-wrapper">
+                        <video controls preload="metadata" poster="assets/showcase-notes-vault.png">
+                            <source src="assets/app-demo-video.mp4" type="video/mp4" />
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+
+                    <div class="video-meta-bar">
+                        <div class="video-meta-features">
+                            <div class="video-meta-feature-item">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                <span>Zero-Knowledge Registration</span>
+                            </div>
+                            <div class="video-meta-feature-item">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                                <span>Biometric Master Key Unlock</span>
+                            </div>
+                            <div class="video-meta-feature-item">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                <span>Sub-Second Multi-Device Sync</span>
+                            </div>
+                        </div>
+
+                        <a href="#download" class="btn-primary" style="padding: 0.55rem 1.2rem; font-size: 0.88rem;">
+                            Install App
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Multi-Tab Visual UI Gallery Showcase -->
+        <section id="showcase">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-tag">Android App Showcase</span>
+                    <h2 class="section-title">Designed for Sovereign Security</h2>
+                    <p class="section-subtitle">
+                        Explore the real screens of CryptoNote running on modern Android with Material 3 styling and high-contrast accessibility.
+                    </p>
+                </div>
+
+                <!-- Gallery Category Filter Bar -->
+                <div class="gallery-filter-bar">
+                    <button class="gallery-filter-btn active" data-filter="all">All Screens</button>
+                    <button class="gallery-filter-btn" data-filter="vault">Vault &amp; Biometrics</button>
+                    <button class="gallery-filter-btn" data-filter="editor">Markdown Editor</button>
+                    <button class="gallery-filter-btn" data-filter="auth">Auth &amp; Architecture</button>
+                    <button class="gallery-filter-btn" data-filter="theming">M3 Dynamic Themes</button>
+                </div>
+
+                <div class="gallery-cards-grid">
+                    <!-- Card 1: Notes & Vault -->
+                    <div class="gallery-item-card" data-category="vault" data-img="assets/showcase-notes-vault.png" data-title="Dual-Zone Notes & Vault List" data-desc="Real-time synced status indicators, pinned notes, and quick-lock vault banner.">
+                        <div class="gallery-item-thumb">
+                            <img src="assets/showcase-notes-vault.png" alt="Dual-Zone Notes & Vault List" loading="lazy" />
+                            <div class="gallery-zoom-overlay">
+                                <div class="gallery-zoom-icon">🔍</div>
+                            </div>
+                        </div>
+                        <div class="gallery-item-info">
+                            <span class="gallery-item-category">Vault &amp; Sync</span>
+                            <h4 class="gallery-item-title">Dual-Zone Notes &amp; Vault</h4>
+                            <p class="gallery-item-desc">Unlocked vault preview with auto-lock timer and synchronized note badges.</p>
+                        </div>
+                    </div>
+
+                    <!-- Card 2: Biometric Unlock -->
+                    <div class="gallery-item-card" data-category="vault" data-img="assets/showcase-vault-biometric.png" data-title="Hardware Biometric Vault Unlock" data-desc="StrongBox KeyStore integration with fingerprint and passphrase unlocking.">
+                        <div class="gallery-item-thumb">
+                            <img src="assets/showcase-vault-biometric.png" alt="Hardware Biometric Vault Unlock" loading="lazy" />
+                            <div class="gallery-zoom-overlay">
+                                <div class="gallery-zoom-icon">🔍</div>
+                            </div>
+                        </div>
+                        <div class="gallery-item-info">
+                            <span class="gallery-item-category">Biometrics</span>
+                            <h4 class="gallery-item-title">Unlock Your Vault</h4>
+                            <p class="gallery-item-desc">Hardware-isolated master key unwrapping via fingerprint or master passphrase.</p>
+                        </div>
+                    </div>
+
+                    <!-- Card 3: Locked Opaque Items -->
+                    <div class="gallery-item-card" data-category="vault" data-img="assets/showcase-vault-locked.png" data-title="Zero-Knowledge Locked Vault State" data-desc="Encrypted ciphertexts stored as opaque blobs with obscured titles.">
+                        <div class="gallery-item-thumb">
+                            <img src="assets/showcase-vault-locked.png" alt="Zero-Knowledge Locked Vault State" loading="lazy" />
+                            <div class="gallery-zoom-overlay">
+                                <div class="gallery-zoom-icon">🔍</div>
+                            </div>
+                        </div>
+                        <div class="gallery-item-info">
+                            <span class="gallery-item-category">Anti-Forensic</span>
+                            <h4 class="gallery-item-title">Secure Your Secrets</h4>
+                            <p class="gallery-item-desc">Locked vault view hiding sensitive titles until explicit biometric verification.</p>
+                        </div>
+                    </div>
+
+                    <!-- Card 4: Markdown Editor -->
+                    <div class="gallery-item-card" data-category="editor" data-img="assets/showcase-editor-markdown.png" data-title="Smart Markdown Note Editor" data-desc="Real-time markdown preview, tag organizer, pin, duplicate, and vault move actions.">
+                        <div class="gallery-item-thumb">
+                            <img src="assets/showcase-editor-markdown.png" alt="Smart Markdown Note Editor" loading="lazy" />
+                            <div class="gallery-zoom-overlay">
+                                <div class="gallery-zoom-icon">🔍</div>
+                            </div>
+                        </div>
+                        <div class="gallery-item-info">
+                            <span class="gallery-item-category">Editor</span>
+                            <h4 class="gallery-item-title">Smart Markdown Notes</h4>
+                            <p class="gallery-item-desc">Full markdown styling, instant on-device tag filtering, and auto-save.</p>
+                        </div>
+                    </div>
+
+                    <!-- Card 5: Auth & Registration -->
+                    <div class="gallery-item-card" data-category="auth" data-img="assets/showcase-auth-register.png" data-title="Zero-Knowledge Account Setup" data-desc="Client-side Argon2id key derivation: your master passphrase never leaves your phone.">
+                        <div class="gallery-item-thumb">
+                            <img src="assets/showcase-auth-register.png" alt="Zero-Knowledge Account Setup" loading="lazy" />
+                            <div class="gallery-zoom-overlay">
+                                <div class="gallery-zoom-icon">🔍</div>
+                            </div>
+                        </div>
+                        <div class="gallery-item-info">
+                            <span class="gallery-item-category">Zero-Knowledge</span>
+                            <h4 class="gallery-item-title">Choose Phrase Wisely</h4>
+                            <p class="gallery-item-desc">Decoupled authentication and encryption keys derived with Argon2id.</p>
+                        </div>
+                    </div>
+
+                    <!-- Card 6: Profile & Architecture Audit -->
+                    <div class="gallery-item-card" data-category="auth" data-img="assets/showcase-profile-audit.png" data-title="Account Credentials & Cryptographic Audit" data-desc="Inspect active JWT token sessions, account UUID, and zero-knowledge status.">
+                        <div class="gallery-item-thumb">
+                            <img src="assets/showcase-profile-audit.png" alt="Account Credentials & Cryptographic Audit" loading="lazy" />
+                            <div class="gallery-zoom-overlay">
+                                <div class="gallery-zoom-icon">🔍</div>
+                            </div>
+                        </div>
+                        <div class="gallery-item-info">
+                            <span class="gallery-item-category">Account Audit</span>
+                            <h4 class="gallery-item-title">Profile &amp; Session Audit</h4>
+                            <p class="gallery-item-desc">Transparent cryptographic verification of active session credentials and keys.</p>
+                        </div>
+                    </div>
+
+                    <!-- Card 7: Dynamic Theming -->
+                    <div class="gallery-item-card" data-category="theming" data-img="assets/showcase-appearance-themes.png" data-title="Material 3 Dynamic Theme Selector" data-desc="Choose from 7 signature color palettes including Warm Espresso, Cyber Teal, and Emerald.">
+                        <div class="gallery-item-thumb">
+                            <img src="assets/showcase-appearance-themes.png" alt="Material 3 Dynamic Theme Selector" loading="lazy" />
+                            <div class="gallery-zoom-overlay">
+                                <div class="gallery-zoom-icon">🔍</div>
+                            </div>
+                        </div>
+                        <div class="gallery-item-info">
+                            <span class="gallery-item-category">Personalization</span>
+                            <h4 class="gallery-item-title">Themes As Per Your Mood</h4>
+                            <p class="gallery-item-desc">7 high-contrast color palettes and Android 12+ dynamic wallpaper theming.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Live Interactive Crypto Playground -->
+        <section id="crypto-playground">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-tag">Interactive Proof of Security</span>
+                    <h2 class="section-title">See Real-Time On-Device Encryption</h2>
+                    <p class="section-subtitle">
+                        Test how CryptoNote seals your data in real-time using the Web Crypto API. Type anything below to watch it convert into an authenticated binary envelope and inspect what the server actually sees.
+                    </p>
+                </div>
+
+                <div class="crypto-playground-box">
+                    <div class="playground-topbar">
+                        <div class="topbar-status">
+                            <span class="pulse-dot"></span>
+                            <span id="crypto-live-status">Device Sealed • Zero-Knowledge Active</span>
+                        </div>
+                        <div class="topbar-tabs">
+                            <button class="tab-btn active" data-tab="envelope">Envelope V1 Binary</button>
+                            <button class="tab-btn" data-tab="server_view">Server DB View</button>
+                            <button class="tab-btn" data-tab="aad">AAD Invariant</button>
+                        </div>
+                    </div>
+
+                    <div class="playground-grid">
+                        <div class="playground-col">
+                            <div class="col-header">
+                                <span class="col-title">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                    Client Plaintext Editor (Local RAM Only)
+                                </span>
+                            </div>
+
+                            <div class="input-field-group">
+                                <label class="input-label" for="demo-note-title">Note Title</label>
+                                <input type="text" id="demo-note-title" class="crypto-input" value="BIP-39 Master Recovery Seed" />
+                            </div>
+
+                            <div class="input-field-group">
+                                <label class="input-label" for="demo-note-zone">Storage Zone</label>
+                                <select id="demo-note-zone" class="crypto-input" style="cursor: pointer;">
+                                    <option value="vault">Vault Zone (Ultra-Hardened, Obscured Previews)</option>
+                                    <option value="notes">Notes Zone (Everyday Encrypted Notes)</option>
+                                </select>
+                            </div>
+
+                            <div class="input-field-group" style="margin-bottom: 0;">
+                                <label class="input-label" for="demo-note-body">Confidential Body</label>
+                                <textarea id="demo-note-body" class="crypto-textarea">abandon dignity ocean shield crystal timber dynamic radar vault cipher cascade</textarea>
+                            </div>
+                        </div>
+
+                        <div class="playground-col">
+                            <div class="col-header">
+                                <span class="col-title">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-teal)" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                    Cryptographic Inspection Pipeline
+                                </span>
+                            </div>
+                            <div id="crypto-output-display" class="envelope-spec-view">
+                                <!-- Populated dynamically by script.js -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Core Features -->
+        <section id="features">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-tag">Zero Compromise Architecture</span>
+                    <h2 class="section-title">Built for Sovereign Privacy</h2>
+                    <p class="section-subtitle">
+                        Every layer of CryptoNote is engineered with defense-in-depth security invariants. No third-party trackers, no analytics SDKs, and zero telemetry.
+                    </p>
+                </div>
+
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon-box">
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                        </div>
+                        <h3 class="feature-title">Zero-Knowledge E2EE</h3>
+                        <p class="feature-desc">
+                            The server never sees plaintext, titles, tags, or unencrypted keys. Even if the database is dumped or the host is seized, note contents cannot be decrypted.
+                        </p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon-box">
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                        </div>
+                        <h3 class="feature-title">Dual-Zone Notes &amp; Vault</h3>
+                        <p class="feature-desc">
+                            Separate your daily ideas from ultra-critical secrets. The Vault zone obscures titles in previews, requires dedicated biometric authentication, and enforces aggressive auto-lock.
+                        </p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon-box">
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                        </div>
+                        <h3 class="feature-title">Offline-First Engine</h3>
+                        <p class="feature-desc">
+                            Write, edit, and search completely offline. Outbox queue pairs note changes in atomic Room transactions and pushes sequentially on reconnect with exponential backoff.
+                        </p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon-box">
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M13 6h3a2 2 0 0 1 2 2v7"></path><line x1="6" y1="9" x2="6" y2="21"></line></svg>
+                        </div>
+                        <h3 class="feature-title">Deterministic Conflict Forking</h3>
+                        <p class="feature-desc">
+                            No silent data loss or arbitrary "last-write-wins". Conflicting multi-device edits are cleanly forked into independent encrypted notes for side-by-side user resolution.
+                        </p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon-box">
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+                        </div>
+                        <h3 class="feature-title">Anti-Forensic Hardening</h3>
+                        <p class="feature-desc">
+                            <code>FLAG_SECURE</code> blocks screenshots, screen recording, and task-switcher previews. Automatic 60-second clipboard wipe and in-memory zeroization on vault lock.
+                        </p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon-box">
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        </div>
+                        <h3 class="feature-title">Material 3 Dynamic UX</h3>
+                        <p class="feature-desc">
+                            High-contrast Obsidian dark mode and crisp crystal light mode compliant with WCAG AA. Live Markdown editing, tag filters, and 7 vibrant accent palettes.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dual-Zone Architecture Breakdown -->
+        <section id="dual-zone" style="background: rgba(19, 25, 36, 0.45);">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-tag">Zone Separation</span>
+                    <h2 class="section-title">Two Zones. Two Security Profiles.</h2>
+                    <p class="section-subtitle">
+                        CryptoNote intelligently splits your workflow into daily note-taking and ultra-hardened vault protection with distinct cryptographic lifecycle behaviors.
+                    </p>
+                </div>
+
+                <div class="dual-zone-grid">
+                    <div class="zone-card zone-notes">
+                        <span class="zone-tag">Daily Notes Zone</span>
+                        <h3 class="zone-heading">Fast, Fluid Encrypted Notes</h3>
+                        <p class="zone-lead">
+                            Designed for meeting minutes, journal entries, code snippets, and daily checklists with instantaneous biometric unlock and fast tag filtering.
+                        </p>
+                        <ul class="zone-spec-list">
+                            <li class="zone-spec-item">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                <span><strong>Instant Search:</strong> Full-text client-side encrypted search with zero server latency.</span>
+                            </li>
+                            <li class="zone-spec-item">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                <span><strong>Markdown &amp; Tags:</strong> Headers, bullet points, checklists, and color tags.</span>
+                            </li>
+                            <li class="zone-spec-item">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                <span><strong>Seamless Sync:</strong> Atomic sync pushed in the background upon connectivity.</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="zone-card zone-vault">
+                        <span class="zone-tag">Hardened Vault Zone</span>
+                        <h3 class="zone-heading">Maximum Anti-Forensic Defense</h3>
+                        <p class="zone-lead">
+                            Reserved for seed phrases, private keys, financial credentials, medical records, and legal archives. Zero digital footprints left in RAM.
+                        </p>
+                        <ul class="zone-spec-list">
+                            <li class="zone-spec-item">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                <span><strong>Obscured Previews:</strong> Titles &amp; excerpts blurred until biometric tap.</span>
+                            </li>
+                            <li class="zone-spec-item">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                <span><strong>Memory Zeroization:</strong> Plaintext &amp; master keys wiped via <code>Arrays.fill(bytes, 0)</code>.</span>
+                            </li>
+                            <li class="zone-spec-item">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                <span><strong>60s Auto-Lock &amp; Clipboard Shredder:</strong> RAM cleared after 1 min idle.</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Deep Cryptographic Architecture & Threat Model -->
+        <section id="architecture">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-tag">Cryptographic Specification</span>
+                    <h2 class="section-title">Envelope V1 &amp; Key Hierarchy</h2>
+                    <p class="section-subtitle">
+                        Authentication is completely decoupled from Encryption. Changing your account login password never requires re-encrypting existing notes.
+                    </p>
+                </div>
+
+                <div class="crypto-diagram-wrapper">
+                    <h3 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 0.5rem;">Binary Envelope Specification (V1)</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.95rem;">
+                        Every encrypted note payload adheres to this strict, zero-overhead binary specification:
+                    </p>
+
+                    <div class="envelope-table-wrap">
+                        <table class="envelope-table">
+                            <thead>
+                                <tr>
+                                    <th>Field</th>
+                                    <th>Byte Size</th>
+                                    <th>Value</th>
+                                    <th>Cryptographic Purpose</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Format Version</td>
+                                    <td>1 Byte</td>
+                                    <td><code>0x01</code></td>
+                                    <td>Envelope binary version discriminator</td>
+                                </tr>
+                                <tr>
+                                    <td>Cipher ID</td>
+                                    <td>1 Byte</td>
+                                    <td><code>0x01</code></td>
+                                    <td>Designates AES-256-GCM cipher suite</td>
+                                </tr>
+                                <tr>
+                                    <td>Key ID</td>
+                                    <td>8 Bytes</td>
+                                    <td><code>HKDF-SHA256</code></td>
+                                    <td>First 8 bytes of key identifier header</td>
+                                </tr>
+                                <tr>
+                                    <td>Nonce (IV)</td>
+                                    <td>12 Bytes</td>
+                                    <td><code>CSPRNG</code></td>
+                                    <td>Cryptographically random per-note initialization vector</td>
+                                </tr>
+                                <tr>
+                                    <td>Ciphertext</td>
+                                    <td>Variable</td>
+                                    <td><code>Encrypted JSON</code></td>
+                                    <td>Encrypted title, body, tags, and client timestamps</td>
+                                </tr>
+                                <tr>
+                                    <td>GCM Auth Tag</td>
+                                    <td>16 Bytes</td>
+                                    <td><code>128-bit MAC</code></td>
+                                    <td>Authenticated Additional Data (AAD) integrity tag</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="section-header" style="margin-bottom: 2rem;">
+                    <h3 class="section-title" style="font-size: 1.8rem;">Adversarial Threat Model &amp; Defenses</h3>
+                </div>
+
+                <div class="threat-matrix-grid">
+                    <div class="threat-card">
+                        <div class="threat-header">
+                            <span class="threat-scenario">Server Database Dump</span>
+                            <span class="threat-defense">✓ Mitigated</span>
+                        </div>
+                        <p class="threat-desc">
+                            Server only stores opaque binary blobs and SHA-256 hashes. Without the client-side master key derived via Argon2id, the dumped database is mathematical gibberish.
+                        </p>
+                    </div>
+
+                    <div class="threat-card">
+                        <div class="threat-header">
+                            <span class="threat-scenario">Rogue Cloud Admin</span>
+                            <span class="threat-defense">✓ Mitigated</span>
+                        </div>
+                        <p class="threat-desc">
+                            Admins cannot forge or modify notes: AES-GCM AAD verifies UUID + Version. Any ciphertext alteration causes authentication tag validation failure on the client.
+                        </p>
+                    </div>
+
+                    <div class="threat-card">
+                        <div class="threat-header">
+                            <span class="threat-scenario">Device Theft / Physical Seizure</span>
+                            <span class="threat-defense">✓ Mitigated</span>
+                        </div>
+                        <p class="threat-desc">
+                            Local database is encrypted with SQLCipher. Vault keys are zeroized in RAM (`Arrays.fill(bytes, 0)`) on lock, and Android Keystore StrongBox hardware isolates master keys.
+                        </p>
+                    </div>
+
+                    <div class="threat-card">
+                        <div class="threat-header">
+                            <span class="threat-scenario">Spyware / Screen Grabbers</span>
+                            <span class="threat-defense">✓ Mitigated</span>
+                        </div>
+                        <p class="threat-desc">
+                            Window `FLAG_SECURE` prevents rogue background apps from recording or taking screenshots. Android OS task switcher shows a redacted blank canvas.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Reviews & Testimonials -->
+        <section id="reviews" class="reviews-section">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-tag">Community &amp; Audit</span>
+                    <h2 class="section-title">Trusted by Privacy Advocates</h2>
+                    <p class="section-subtitle">
+                        Read verified reviews from cryptographic researchers, mobile security engineers, and privacy-focused users.
+                    </p>
+                </div>
+
+                <div class="reviews-grid-container">
+                    <!-- Submit Review Form -->
+                    <div class="review-form-card">
+                        <h3>Leave Feedback</h3>
+                        <p>Share your experience testing CryptoNote's encryption and sync protocol.</p>
+                        <form id="review-form">
+                            <div class="form-group">
+                                <label for="review-name">Your Name</label>
+                                <input type="text" id="review-name" class="form-control" placeholder="e.g. Sarah Connor" required />
+                            </div>
+                            <div class="form-group">
+                                <label for="review-role">Role / Project</label>
+                                <input type="text" id="review-role" class="form-control" placeholder="e.g. Security Researcher / Android Dev" />
+                            </div>
+                            <div class="form-group">
+                                <label>Rating</label>
+                                <input type="hidden" id="review-rating-value" value="5" />
+                                <div class="star-rating-select" id="star-selector">
+                                    <button type="button" class="star-btn selected" data-value="1">★</button>
+                                    <button type="button" class="star-btn selected" data-value="2">★</button>
+                                    <button type="button" class="star-btn selected" data-value="3">★</button>
+                                    <button type="button" class="star-btn selected" data-value="4">★</button>
+                                    <button type="button" class="star-btn selected" data-value="5">★</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="review-text">Review / Comments</label>
+                                <textarea id="review-text" class="form-control" placeholder="Describe your experience with the zero-knowledge vault, sync speed, or UX..." required></textarea>
+                            </div>
+                            <button type="submit" class="btn-primary" style="width: 100%; justify-content: center; padding: 0.85rem;">
+                                Submit Feedback
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Review Feed -->
+                    <div id="review-list" class="review-list">
+                        <!-- Populated dynamically by script.js -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FAQ Section -->
+        <section id="faq">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-tag">Common Questions</span>
+                    <h2 class="section-title">Frequently Asked Questions</h2>
+                    <p class="section-subtitle">
+                        Everything you need to know about key derivation, recovery phrases, and self-hosting.
+                    </p>
+                </div>
+
+                <div class="faq-accordion">
+                    <div class="faq-item">
+                        <button class="faq-trigger">
+                            <span>Can the sync server or host read my notes?</span>
+                            <svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="faq-content">
+                            <p>No. CryptoNote enforces strict zero-knowledge end-to-end encryption. All note titles, bodies, and tags are encrypted on your Android phone using client-side AES-256-GCM before transmission. The sync server only stores an opaque binary envelope and monotonic sequence numbers.</p>
+                        </div>
+                    </div>
+
+                    <div class="faq-item">
+                        <button class="faq-trigger">
+                            <span>What happens if I edit notes simultaneously on two devices while offline?</span>
+                            <svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="faq-content">
+                            <p>CryptoNote implements deterministic conflict forking. Unlike naive applications that silently overwrite edits based on clock skew or "last-write-wins", conflicting revisions are preserved and automatically forked into independent note entries so you never lose a single keystroke.</p>
+                        </div>
+                    </div>
+
+                    <div class="faq-item">
+                        <button class="faq-trigger">
+                            <span>Can I host my own CryptoNote backend?</span>
+                            <svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="faq-content">
+                            <p>Yes! The backend is 100% open-source, written in TypeScript with Fastify and PostgreSQL. You can deploy it to Fly.io, Render, or run it via Docker Compose on your own home server or VPS. Simply point the Android client's backend URL in Settings to your self-hosted instance.</p>
+                        </div>
+                    </div>
+
+                    <div class="faq-item">
+                        <button class="faq-trigger">
+                            <span>What is the difference between Login Password and Passphrase?</span>
+                            <svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="faq-content">
+                            <p>Authentication and Encryption are strictly decoupled. Your login password authenticates against the server (using Argon2id hash). Your Master Key, however, is generated locally via CSPRNG and wrapped by a Key Encryption Key (KEK). This allows you to change your server login credentials at any time without having to re-encrypt every note in your vault.</p>
+                        </div>
+                    </div>
+
+                    <div class="faq-item">
+                        <button class="faq-trigger">
+                            <span>What happens if I lose my Master Passphrase?</span>
+                            <svg class="faq-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        </button>
+                        <div class="faq-content">
+                            <p>During account creation, CryptoNote generates a 256-bit mnemonic Recovery Key. If you forget your passphrase, this recovery key can unwrap your Master Key. If you lose both your passphrase and recovery key, no one—not even the project maintainers—can decrypt your notes.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Download & Verification Hub -->
+        <section id="download">
+            <div class="container">
+                <div class="download-card-box">
+                    <span class="download-version-tag">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        Release v1.4.0 Stable • Android 8.0+ (Oreo, API 26+)
+                    </span>
+                    <h2 class="download-title">Reclaim Your Sovereign Privacy Today</h2>
+                    <p class="download-desc">
+                        Download the standalone APK directly, build from source, or connect to your own self-hosted sync server.
+                    </p>
+
+                    <div class="download-actions-row">
+                        <!-- Direct APK Download -->
+                        <a href="assets/cryptonote-v1.4.0.apk" download="CryptoNote-v1.4.0.apk" class="btn-primary" style="padding: 0.95rem 2.2rem; font-size: 1.1rem;">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            <span>Download APK v1.4.0 (23.9 MB)</span>
+                        </a>
+
+                        <a href="https://github.com/RoshanKumar404/CryptoNote" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="padding: 0.95rem 2rem; font-size: 1.1rem;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                            </svg>
+                            <span>GitHub Releases</span>
+                        </a>
+                    </div>
+
+                    <div class="checksum-verify-box">
+                        <span style="font-weight: 700; color: var(--accent-primary);">SHA-256 Checksum:</span>
+                        <span class="checksum-text" id="apk-checksum-text">f26a3a46e3c0fbc03c26bdb21c82ae568218cb9e64b5cc48d17b5d31132b2fc6</span>
+                        <button class="btn-copy-hash" data-copy="f26a3a46e3c0fbc03c26bdb21c82ae568218cb9e64b5cc48d17b5d31132b2fc6">Copy Hash</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Lightbox Zoom Modal for Screenshots -->
+    <div id="lightbox-modal" class="lightbox-modal" role="dialog" aria-modal="true" aria-label="Screenshot preview">
+        <div class="lightbox-content">
+            <button id="lightbox-close" class="lightbox-close-btn" aria-label="Close dialog">✕</button>
+            <img id="lightbox-img" src="" alt="Fullscreen Screenshot Preview" />
+            <div id="lightbox-caption" class="lightbox-caption"></div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <div class="logo-wrap">
+                        <svg class="logo-icon-svg" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                            <path d="M12 8v4"></path>
+                            <path d="M12 16h.01"></path>
+                        </svg>
+                        <span>CryptoNote</span>
+                    </div>
+                    <p>
+                        Zero-Knowledge, offline-first notes &amp; vault platform. All client secrets stay on the device.
+                    </p>
+                </div>
+
+                <div>
+                    <h4 class="footer-heading">Product</h4>
+                    <ul class="footer-links">
+                        <li><a href="#features">Features</a></li>
+                        <li><a href="#dual-zone">Dual-Zone Vault</a></li>
+                        <li><a href="#video-demo">App Video</a></li>
+                        <li><a href="#showcase">UI Gallery</a></li>
+                        <li><a href="#download">Download APK</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="footer-heading">Architecture</h4>
+                    <ul class="footer-links">
+                        <li><a href="#architecture">Key Hierarchy</a></li>
+                        <li><a href="#architecture">Envelope V1 Spec</a></li>
+                        <li><a href="#architecture">Threat Model</a></li>
+                        <li><a href="#crypto-playground">Interactive Lab</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="footer-heading">Project</h4>
+                    <ul class="footer-links">
+                        <li><a href="https://github.com/RoshanKumar404/CryptoNote" target="_blank" rel="noopener">GitHub Repository</a></li>
+                        <li><a href="https://github.com/RoshanKumar404/CryptoNote/blob/main/LICENSE" target="_blank" rel="noopener">Apache 2.0 License</a></li>
+                        <li><a href="https://github.com/RoshanKumar404/CryptoNote/issues" target="_blank" rel="noopener">Issue Tracker</a></li>
+                        <li><a href="#faq">FAQ</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <div>© 2026 CryptoNote. Open-source under Apache License 2.0.</div>
+                <div style="display: flex; gap: 1.5rem;">
+                    <a href="#top" style="color: var(--accent-primary);">Back to Top ↑</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Main JavaScript Logic -->
+    <script src="script.js"></script>
+</body>
+</html>
