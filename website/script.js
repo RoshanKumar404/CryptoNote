@@ -420,8 +420,8 @@ function initCryptoPlayground() {
           <strong style="color:var(--text-primary);">Raw Binary Envelope (Hex Stream):</strong><br/>
           ${cachedPayload.fullEnvelopeHex.substring(0, 160)}...
         </div>
-        <div style="margin-top:0.75rem; font-size:0.78rem; color:var(--text-muted);">
-          SHA-256 Checksum: <span style="color:var(--accent-primary);">${cachedPayload.checksum}</span>
+        <div style="margin-top:0.75rem; font-size:0.78rem; color:var(--text-muted); word-break:break-all; overflow-wrap:anywhere;">
+          SHA-256 Checksum: <span style="color:var(--accent-primary); word-break:break-all;">${cachedPayload.checksum}</span>
         </div>
       `;
     } else if (currentTab === 'server_view') {
@@ -429,7 +429,7 @@ function initCryptoPlayground() {
         <div class="envelope-badge-pill" style="background:rgba(239,68,68,0.15); color:#ef4444;">
           Fastify Backend Database View (Zero Plaintext Visible)
         </div>
-        <pre style="margin:0.5rem 0; font-family:var(--font-mono); font-size:0.8rem; color:#94a3b8; line-height:1.5;">{
+        <pre style="margin:0.5rem 0; font-family:var(--font-mono); font-size:0.8rem; color:#94a3b8; line-height:1.5; white-space:pre-wrap; word-break:break-all; overflow-wrap:anywhere;">{
   "op_id": "op_98d7b3a4-8f12",
   "note_id": "${cachedPayload.noteUUID}",
   "server_version": ${cachedPayload.version},
@@ -440,14 +440,14 @@ function initCryptoPlayground() {
   "content": null,    /* 🔒 Server NEVER knows content */
   "tags": null        /* 🔒 Server NEVER knows tags */
 }</pre>
-        <div style="font-size:0.78rem; color:var(--accent-primary);">
+        <div style="font-size:0.78rem; color:var(--accent-primary); line-height:1.5;">
           ✓ Database breach immune: Mathematical decryption impossible without client master key.
         </div>
       `;
     } else if (currentTab === 'aad') {
       outputDisplay.innerHTML = `
         <div class="envelope-badge-pill">Additional Authenticated Data (AAD)</div>
-        <div style="margin:0.5rem 0; font-family:var(--font-mono); font-size:0.84rem; color:#38bdf8;">
+        <div style="margin:0.5rem 0; font-family:var(--font-mono); font-size:0.84rem; color:#38bdf8; word-break:break-all; overflow-wrap:anywhere;">
           ${cachedPayload.aadString}
         </div>
         <p style="font-size:0.8rem; color:var(--text-secondary); line-height:1.6; margin-top:0.5rem;">
