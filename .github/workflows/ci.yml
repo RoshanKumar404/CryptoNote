@@ -3,18 +3,16 @@ name: CI (Frontend & Backend Upgrade Compatibility)
 on:
   push:
     branches: [ master, main ]
-    paths-ignore:
-      - 'website/**'
-      - '.github/workflows/deploy-pages.yml'
-      - '*.md'
-      - 'docs/**'
+    paths:
+      - 'CryptNote/**'
+      - 'backend/**'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches: [ master, main ]
-    paths-ignore:
-      - 'website/**'
-      - '.github/workflows/deploy-pages.yml'
-      - '*.md'
-      - 'docs/**'
+    paths:
+      - 'CryptNote/**'
+      - 'backend/**'
+      - '.github/workflows/ci.yml'
 
 jobs:
   backend-tests:
@@ -31,7 +29,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U postgres"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -51,10 +49,18 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      - name: Generate Prisma Client
+        working-directory: backend
+        env:
+          DATABASE_URL: "postgresql://postgres:password@localhost:5432/cryptnote_test?schema=public"
+          DIRECT_URL: "postgresql://postgres:password@localhost:5432/cryptnote_test?schema=public"
+        run: npx prisma generate
+
       - name: Run Prisma Migrations
         working-directory: backend
         env:
           DATABASE_URL: "postgresql://postgres:password@localhost:5432/cryptnote_test?schema=public"
+          DIRECT_URL: "postgresql://postgres:password@localhost:5432/cryptnote_test?schema=public"
           JWT_SECRET: "test-jwt-secret-min-32-chars-long!!"
         run: npx prisma migrate deploy
 
@@ -62,6 +68,7 @@ jobs:
         working-directory: backend
         env:
           DATABASE_URL: "postgresql://postgres:password@localhost:5432/cryptnote_test?schema=public"
+          DIRECT_URL: "postgresql://postgres:password@localhost:5432/cryptnote_test?schema=public"
           JWT_SECRET: "test-jwt-secret-min-32-chars-long!!"
           NODE_ENV: "test"
         run: npm test
@@ -82,6 +89,10 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
+
+      - name: Make Gradlew Executable
+        working-directory: CryptNote
+        run: chmod +x ./gradlew
 
       - name: Run Android Unit Tests (Loads Golden Fixtures & Room Migration)
         working-directory: CryptNote
