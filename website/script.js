@@ -124,6 +124,17 @@ function initPalettePicker() {
   if (dropdownBtn && dropdownMenu) {
     dropdownBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      const mobileNav = document.querySelector('.nav-links');
+      const mobileToggle = document.querySelector('.mobile-toggle');
+      if (mobileNav && mobileNav.classList.contains('active')) {
+        mobileNav.classList.remove('active');
+        if (mobileToggle) {
+          mobileToggle.classList.remove('active');
+          mobileToggle.setAttribute('aria-expanded', 'false');
+        }
+        document.body.classList.remove('mobile-menu-open');
+        document.documentElement.classList.remove('mobile-menu-open');
+      }
       dropdownMenu.classList.toggle('show');
     });
 
@@ -709,6 +720,7 @@ function initCopyButtons() {
 function initMobileMenu() {
   const toggleBtn = document.querySelector('.mobile-toggle');
   const navLinks = document.querySelector('.nav-links');
+  const paletteMenu = document.getElementById('palette-dropdown-menu');
 
   if (toggleBtn && navLinks) {
     const closeMenu = () => {
@@ -716,20 +728,37 @@ function initMobileMenu() {
       toggleBtn.classList.remove('active');
       toggleBtn.setAttribute('aria-expanded', 'false');
       document.body.classList.remove('mobile-menu-open');
+      document.documentElement.classList.remove('mobile-menu-open');
     };
 
     toggleBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      // Close palette dropdown if open to avoid visual overlap
+      if (paletteMenu && paletteMenu.classList.contains('show')) {
+        paletteMenu.classList.remove('show');
+      }
       const isOpen = navLinks.classList.toggle('active');
       toggleBtn.classList.toggle('active', isOpen);
       toggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
       document.body.classList.toggle('mobile-menu-open', isOpen);
+      document.documentElement.classList.toggle('mobile-menu-open', isOpen);
     });
 
-    // Close when clicking any link
+    // Close when clicking any link and handle mobile smooth scrolling reliably
     navLinks.querySelectorAll('a').forEach(a => {
-      a.addEventListener('click', () => {
+      a.addEventListener('click', (e) => {
+        const href = a.getAttribute('href');
         closeMenu();
+        if (href && href.startsWith('#') && href.length > 1) {
+          e.preventDefault();
+          const targetEl = document.querySelector(href);
+          if (targetEl) {
+            // Allow body overflow lock to release before triggering smooth scroll
+            setTimeout(() => {
+              targetEl.scrollIntoView({ behavior: 'smooth' });
+            }, 60);
+          }
+        }
       });
     });
 

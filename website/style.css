@@ -754,6 +754,7 @@ body.light-mode .header {
 section {
   padding: 5rem 0;
   position: relative;
+  scroll-margin-top: 5.5rem;
 }
 
 .section-header {
@@ -1842,12 +1843,15 @@ textarea.form-control {
 
 /* 2. Tablets & Mobile Breakpoint (max-width: 992px) */
 @media (max-width: 992px) {
-  body.mobile-menu-open {
+  body.mobile-menu-open,
+  html.mobile-menu-open {
     overflow: hidden !important;
+    touch-action: none;
   }
 
   .mobile-toggle {
     display: flex;
+    -webkit-tap-highlight-color: transparent;
   }
 
   /* Full-Screen / Top Overlay Mobile Navigation Drawer */
@@ -1857,6 +1861,8 @@ textarea.form-control {
     left: 0;
     right: 0;
     bottom: 0;
+    height: calc(100dvh - 4.5rem);
+    max-height: calc(100dvh - 4.5rem);
     background: rgba(11, 15, 23, 0.98);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
@@ -1864,13 +1870,16 @@ textarea.form-control {
     justify-content: flex-start;
     align-items: stretch;
     gap: 0.5rem;
-    padding: 2rem 1.5rem;
-    transform: translateY(-100%);
+    padding: 1.5rem 1.5rem calc(2.5rem + env(safe-area-inset-bottom));
+    transform: translateY(-110%);
     opacity: 0;
     visibility: hidden;
     transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease, visibility 0.3s;
     border-bottom: 1px solid var(--border-subtle);
     overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
     z-index: 99;
   }
 
@@ -1897,6 +1906,7 @@ textarea.form-control {
     padding: 0.85rem 1rem;
     border-radius: var(--radius-sm);
     color: var(--text-primary);
+    -webkit-tap-highlight-color: transparent;
   }
 
   .nav-links a:hover,
@@ -1910,8 +1920,10 @@ textarea.form-control {
     margin-top: 0.75rem;
   }
 
-  /* Header adjustments */
-  .header-download-btn {
+  /* Header adjustments: hide non-essential desktop buttons when mobile menu toggle is active */
+  .header-download-btn,
+  .header-github-btn,
+  .header-video-btn {
     display: none;
   }
 
@@ -2133,6 +2145,10 @@ textarea.form-control {
 
 /* 4. Compact Smartphones (max-width: 540px) */
 @media (max-width: 540px) {
+  section {
+    scroll-margin-top: 4.5rem;
+  }
+
   .nav-container {
     height: 4rem;
     padding: 0 1rem;
@@ -2140,6 +2156,8 @@ textarea.form-control {
   }
   .nav-links {
     top: 4rem;
+    height: calc(100dvh - 4rem);
+    max-height: calc(100dvh - 4rem);
   }
 
   .logo-wrap {

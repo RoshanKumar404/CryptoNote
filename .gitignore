@@ -35,6 +35,7 @@ keystore.properties
 # Build outputs
 *.apk
 *.aab
+!website/assets/*.apk
 
 # OS & Cache
 .DS_Store
