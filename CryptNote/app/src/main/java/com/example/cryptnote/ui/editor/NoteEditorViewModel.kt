@@ -27,7 +27,8 @@ data class NoteEditorUiState(
     val isPreviewMode: Boolean = false,
     val lastSavedAt: Long = 0L,
     val isSaving: Boolean = false,
-    val isInitialized: Boolean = false
+    val isInitialized: Boolean = false,
+    val isReadOnly: Boolean = false
 )
 
 @HiltViewModel
@@ -51,13 +52,21 @@ class NoteEditorViewModel @Inject constructor(
             viewModelScope.launch {
                 val existing = noteRepository.getNoteById(noteId).firstOrNull()
                 if (existing != null) {
+                    val isPlaceholder = existing.title.startsWith("⚠️") ||
+                        existing.title.startsWith("🔒") ||
+                        existing.body.contains("could not be decrypted", ignoreCase = true) ||
+                        existing.body.contains("different key", ignoreCase = true) ||
+                        existing.body.contains("Vault is locked", ignoreCase = true) ||
+                        existing.body.contains("Unlock to decrypt", ignoreCase = true)
+
                     _uiState.update {
                         it.copy(
-                            title = if (existing.title.startsWith("⚠️ Decryption Error")) "" else existing.title,
-                            body = if (existing.title.startsWith("⚠️ Decryption Error")) "" else existing.body,
+                            title = if (isPlaceholder) "" else existing.title,
+                            body = if (isPlaceholder) "" else existing.body,
                             tags = existing.tags,
                             isPinned = existing.pinned,
                             isVault = existing.isVault,
+                            isReadOnly = isPlaceholder,
                             lastSavedAt = existing.updatedAt,
                             isInitialized = true
                         )
@@ -124,8 +133,19 @@ class NoteEditorViewModel @Inject constructor(
 
     private suspend fun saveInternal() {
         val currentState = _uiState.value
+        if (currentState.isReadOnly) {
+            return
+        }
         // Only save if there is content or tags to persist
         if (currentState.title.isBlank() && currentState.body.isBlank() && currentState.tags.isEmpty()) {
+            return
+        }
+        if (currentState.title.startsWith("⚠️") ||
+            currentState.title.startsWith("🔒") ||
+            currentState.body.contains("could not be decrypted", ignoreCase = true) ||
+            currentState.body.contains("different key", ignoreCase = true) ||
+            currentState.body.contains("Vault is locked", ignoreCase = true) ||
+            currentState.body.contains("Unlock to decrypt", ignoreCase = true)) {
             return
         }
 

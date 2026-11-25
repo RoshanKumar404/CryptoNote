@@ -31,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxState
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
@@ -41,7 +42,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -51,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import com.example.cryptnote.domain.model.Note
 import com.example.cryptnote.domain.model.SyncStatus
 import com.example.cryptnote.ui.common.buildHighlightedString
+import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,26 +69,46 @@ fun SwipeableNoteCard(
     onSyncStatusClick: () -> Unit,
     onMoveToVault: (() -> Unit)? = null
 ) {
+    val density = LocalDensity.current
+    // Substantial distance required (at least 150dp) to prevent accidental diagonal scrolls/flings from triggering dismiss
+    val minSwipeDistancePx = with(density) { 150.dp.toPx() }
+
+    val dismissStateRef = remember { arrayOfNulls<SwipeToDismissBoxState>(1) }
+
     val dismissState = rememberSwipeToDismissBoxState(
-        positionalThreshold = { totalDistance -> totalDistance * 0.70f },
+        positionalThreshold = { totalDistance: Float ->
+            maxOf(totalDistance * 0.50f, minSwipeDistancePx)
+        },
         confirmValueChange = { dismissValue ->
-            when (dismissValue) {
-                SwipeToDismissBoxValue.EndToStart -> {
-                    onDelete()
-                    true
-                }
-                SwipeToDismissBoxValue.StartToEnd -> {
-                    if (onMoveToVault != null) {
-                        onMoveToVault()
+            // Guardrail: verify that the user actually dragged a deliberate distance,
+            // filtering out minor diagonal flicks or fast scroll releases
+            val currentOffset = dismissStateRef[0]?.let { state ->
+                runCatching { abs(state.requireOffset()) }.getOrNull()
+            } ?: 0f
+
+            if (currentOffset < minSwipeDistancePx) {
+                // Reject accidental triggers and snap card back to center
+                false
+            } else {
+                when (dismissValue) {
+                    SwipeToDismissBoxValue.EndToStart -> {
+                        onDelete()
                         true
-                    } else {
-                        false
                     }
+                    SwipeToDismissBoxValue.StartToEnd -> {
+                        if (onMoveToVault != null) {
+                            onMoveToVault()
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                    else -> false
                 }
-                else -> false
             }
         }
     )
+    dismissStateRef[0] = dismissState
 
     SwipeToDismissBox(
         state = dismissState,
@@ -93,7 +117,8 @@ fun SwipeableNoteCard(
         backgroundContent = {
             val direction = dismissState.dismissDirection
             val progress = dismissState.progress
-            if (progress > 0.05f) {
+            if (progress > 0.15f) {
+                val contentAlpha = ((progress - 0.15f) / 0.35f).coerceIn(0f, 1f)
                 when (direction) {
                     SwipeToDismissBoxValue.EndToStart -> {
                         // Left swipe: Delete
@@ -102,6 +127,7 @@ fun SwipeableNoteCard(
                                 .fillMaxSize()
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(MaterialTheme.colorScheme.errorContainer)
+                                .alpha(contentAlpha)
                                 .padding(horizontal = 20.dp),
                             contentAlignment = Alignment.CenterEnd
                         ) {
@@ -127,6 +153,7 @@ fun SwipeableNoteCard(
                                 .fillMaxSize()
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(MaterialTheme.colorScheme.primaryContainer)
+                                .alpha(contentAlpha)
                                 .padding(horizontal = 20.dp),
                             contentAlignment = Alignment.CenterStart
                         ) {

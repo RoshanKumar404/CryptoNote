@@ -68,9 +68,6 @@ class RoomNoteRepository @Inject constructor(
     private val migratingNotes = ConcurrentHashMap.newKeySet<String>()
 
     private fun triggerSync() {
-        try {
-            syncScheduler.scheduleImmediate()
-        } catch (_: Exception) {}
         repositoryScope.launch {
             try {
                 syncManager.sync()
@@ -95,7 +92,14 @@ class RoomNoteRepository @Inject constructor(
 
     override fun getNoteById(id: String): Flow<Note?> {
         return noteDao.observeNoteById(id).map { entity ->
-            entity?.toDomainModel()
+            if (entity != null) {
+                val siblings = if (entity.conflictGroupId != null) {
+                    noteDao.getNotesByConflictGroup(entity.conflictGroupId)
+                } else {
+                    emptyList()
+                }
+                entity.toDomainModel(siblings)
+            } else null
         }
     }
 
@@ -157,6 +161,10 @@ class RoomNoteRepository @Inject constructor(
 
             when (action) {
                 is ConflictResolutionAction.KeepLocal -> {
+                    if (local.title.startsWith("⚠️") || local.body.contains("could not be decrypted", ignoreCase = true)) {
+                        android.util.Log.e("RoomNoteRepository", "Cannot KeepLocal on damaged note: ${local.id}")
+                        return@withTransaction
+                    }
                     if (forkId != null) {
                         noteDao.deleteNoteById(forkId)
                         outboxDao.deleteEntriesForNote(forkId)
@@ -179,6 +187,10 @@ class RoomNoteRepository @Inject constructor(
                     noteDao.updateSyncStatus(canonicalId, SyncStatus.SYNCED.name.lowercase())
                 }
                 is ConflictResolutionAction.CustomMerge -> {
+                    if (action.mergedTitle.startsWith("⚠️") || action.mergedBody.contains("could not be decrypted", ignoreCase = true)) {
+                        android.util.Log.e("RoomNoteRepository", "Cannot save merged note with damaged placeholder")
+                        return@withTransaction
+                    }
                     if (forkId != null) {
                         noteDao.deleteNoteById(forkId)
                         outboxDao.deleteEntriesForNote(forkId)
@@ -198,6 +210,17 @@ class RoomNoteRepository @Inject constructor(
     }
 
     override suspend fun saveNote(note: Note) {
+        // Safeguard: Never save or upload decryption error or locked vault placeholders
+        if (note.title.startsWith("⚠️") ||
+            note.title.startsWith("🔒") ||
+            note.body.contains("could not be decrypted", ignoreCase = true) ||
+            note.body.contains("different key", ignoreCase = true) ||
+            note.body.contains("Vault is locked", ignoreCase = true) ||
+            note.body.contains("Unlock to decrypt", ignoreCase = true)) {
+            android.util.Log.w("RoomNoteRepository", "Safeguard triggered: refusing to save placeholder note '${note.id}'")
+            return
+        }
+
         val encryptionKey = keySessionManager.getEncryptionKey()
         val keyId = keySessionManager.getKeyId()
 
@@ -235,7 +258,6 @@ class RoomNoteRepository @Inject constructor(
                 key = encryptionKey,
                 keyId = keyId,
                 noteId = noteUuid,
-                version = targetVersion.toLong(),
                 plaintext = jsonPayload.toByteArray(Charsets.UTF_8)
             )
 
@@ -451,14 +473,17 @@ class RoomNoteRepository @Inject constructor(
                 key = encryptionKey,
                 keyId = keyId,
                 noteId = noteUuid,
-                version = targetVersion.toLong(),
                 plaintext = updatedJson.toByteArray(Charsets.UTF_8)
             )
 
             val checksum = MessageDigest.getInstance("SHA-256").digest(envelope)
+            val nonceBytes = if (envelope.size >= 22) envelope.copyOfRange(10, 22) else ByteArray(0)
+            val cipherBytes = if (envelope.size >= 22) envelope.copyOfRange(22, envelope.size) else ByteArray(0)
 
             val updatedEntity = existing.copy(
                 envelope = envelope,
+                ciphertext = cipherBytes,
+                nonce = nonceBytes,
                 formatVersion = EnvelopeV1.FORMAT,
                 keyId = keyId,
                 checksum = checksum,
@@ -470,8 +495,6 @@ class RoomNoteRepository @Inject constructor(
             noteDao.insertNote(updatedEntity)
 
             val envelopeB64 = Base64.getEncoder().encodeToString(envelope)
-            val nonceBytes = if (envelope.size >= 22) envelope.copyOfRange(10, 22) else ByteArray(0)
-            val cipherBytes = if (envelope.size >= 22) envelope.copyOfRange(22, envelope.size) else ByteArray(0)
             val nonceB64 = Base64.getEncoder().encodeToString(nonceBytes)
 
             val envelopeB64Url = Base64.getUrlEncoder().withoutPadding().encodeToString(envelope)
@@ -555,7 +578,6 @@ class RoomNoteRepository @Inject constructor(
                         key = encryptionKey,
                         keyId = keyId,
                         noteId = noteUuid,
-                        version = targetVersion.toLong(),
                         plaintext = plaintext
                     )
                     val checksum = MessageDigest.getInstance("SHA-256").digest(envelope)
@@ -607,6 +629,49 @@ class RoomNoteRepository @Inject constructor(
                 triggerSync()
             } catch (_: Exception) {
                 // Ignore migration failure
+            } finally {
+                migratingNotes.remove(entity.id)
+            }
+        }
+    }
+
+    private fun scheduleHealFork(
+        entity: NoteEntity,
+        plaintext: ByteArray,
+        key: ByteArray,
+        keyId: ByteArray
+    ) {
+        if (!migratingNotes.add(entity.id)) return
+        repositoryScope.launch(Dispatchers.IO) {
+            try {
+                database.withTransaction {
+                    val current = noteDao.getNoteById(entity.id) ?: return@withTransaction
+                    val noteUuid = try {
+                        UUID.fromString(current.id)
+                    } catch (_: Exception) {
+                        UUID.nameUUIDFromBytes(current.id.toByteArray(Charsets.UTF_8))
+                    }
+                    val healedEnvelope = EnvelopeV1.seal(
+                        key = key,
+                        keyId = keyId,
+                        noteId = noteUuid,
+                        version = current.version.toLong(),
+                        plaintext = plaintext
+                    )
+                    val healedChecksum = MessageDigest.getInstance("SHA-256").digest(healedEnvelope)
+                    val nonce = if (healedEnvelope.size >= 22) healedEnvelope.copyOfRange(10, 22) else ByteArray(0)
+                    val cipher = if (healedEnvelope.size >= 22) healedEnvelope.copyOfRange(22, healedEnvelope.size) else ByteArray(0)
+
+                    noteDao.insertNote(
+                        current.copy(
+                            envelope = healedEnvelope,
+                            ciphertext = cipher,
+                            nonce = nonce,
+                            checksum = healedChecksum
+                        )
+                    )
+                }
+            } catch (_: Exception) {
             } finally {
                 migratingNotes.remove(entity.id)
             }
@@ -678,6 +743,41 @@ class RoomNoteRepository @Inject constructor(
                     throw SecurityException("Note encrypted under different key")
                 }
                 is OpenResult.Corrupt -> {
+                    // Step 1b: Dual-reader self-healing for conflict forks
+                    // If note was forked under a sibling's UUID, try candidate note UUIDs from allEntities
+                    var recoveredJson: String? = null
+                    if (allEntities.isNotEmpty()) {
+                        val candidates = if (entity.conflictGroupId != null) {
+                            allEntities.filter { it.conflictGroupId == entity.conflictGroupId && it.id != entity.id }
+                        } else {
+                            allEntities.filter { it.id != entity.id }
+                        }
+
+                        for (candidate in candidates) {
+                            val candidateUuid = try {
+                                UUID.fromString(candidate.id)
+                            } catch (_: Exception) {
+                                UUID.nameUUIDFromBytes(candidate.id.toByteArray(Charsets.UTF_8))
+                            }
+                            val siblingRes = EnvelopeV1.open(
+                                key = encryptionKey,
+                                currentKeyId = currentKeyId,
+                                noteId = candidateUuid,
+                                version = entity.version.toLong(),
+                                env = entity.envelope
+                            )
+                            if (siblingRes is OpenResult.Opened) {
+                                recoveredJson = String(siblingRes.plaintext, Charsets.UTF_8)
+                                scheduleHealFork(entity, siblingRes.plaintext, encryptionKey, currentKeyId)
+                                break
+                            }
+                        }
+                    }
+
+                    if (recoveredJson != null) {
+                        return recoveredJson
+                    }
+
                     decryptDiagnostics.record(
                         noteId = entity.id,
                         keyIdPrefixHex = keyIdHex,

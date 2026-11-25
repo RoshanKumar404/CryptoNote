@@ -42,20 +42,25 @@ object NetworkModule {
             return if (targetUrl.endsWith("/")) targetUrl else "$targetUrl/"
         }
 
-        val isEmulator = android.os.Build.FINGERPRINT.startsWith("generic")
-                || android.os.Build.FINGERPRINT.startsWith("unknown")
-                || android.os.Build.MODEL.contains("google_sdk")
-                || android.os.Build.MODEL.contains("Emulator")
-                || android.os.Build.MODEL.contains("Android SDK built for x86")
-                || android.os.Build.MANUFACTURER.contains("Genymotion")
-                || (android.os.Build.BRAND.startsWith("generic") && android.os.Build.DEVICE.startsWith("generic"))
-                || "google_sdk" == android.os.Build.PRODUCT
+        // Only fallback to local loopback in Debug builds
+        if (com.example.cryptnote.BuildConfig.DEBUG) {
+            val isEmulator = android.os.Build.FINGERPRINT.startsWith("generic")
+                    || android.os.Build.FINGERPRINT.startsWith("unknown")
+                    || android.os.Build.MODEL.contains("google_sdk")
+                    || android.os.Build.MODEL.contains("Emulator")
+                    || android.os.Build.MODEL.contains("Android SDK built for x86")
+                    || android.os.Build.MANUFACTURER.contains("Genymotion")
+                    || (android.os.Build.BRAND.startsWith("generic") && android.os.Build.DEVICE.startsWith("generic"))
+                    || "google_sdk" == android.os.Build.PRODUCT
 
-        return if (isEmulator) {
-            "http://10.0.2.2:3000/"
-        } else {
-            "http://127.0.0.1:3000/"
+            return if (isEmulator) {
+                "http://10.0.2.2:3000/"
+            } else {
+                "http://127.0.0.1:3000/"
+            }
         }
+
+        return "https://cryptonote-backend.fly.dev/"
     }
 
     @Provides
@@ -70,7 +75,12 @@ object NetworkModule {
     @Singleton
     fun provideLoggingInterceptor(): HttpLoggingInterceptor {
         return HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            // Never log sensitive bodies, tokens, or passwords in release builds
+            level = if (com.example.cryptnote.BuildConfig.DEBUG) {
+                HttpLoggingInterceptor.Level.BODY
+            } else {
+                HttpLoggingInterceptor.Level.NONE
+            }
         }
     }
 

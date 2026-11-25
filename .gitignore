@@ -25,6 +25,8 @@ local.properties
 # Keystores & Security
 *.jks
 *.keystore
+keystore.properties
+**/keystore.properties
 *.p12
 *.key
 *.pem

@@ -21,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import java.security.MessageDigest
 import java.util.Base64
 import java.util.UUID
 import javax.inject.Inject
@@ -189,34 +190,136 @@ class SyncManager @Inject constructor(
                         }
                         "conflict" -> {
                             val existing = noteDao.getNoteById(entry.noteId)
-                            if (existing != null) {
-                                val conflictGroupId = existing.conflictGroupId ?: UUID.randomUUID().toString()
-                                noteDao.insertNote(existing.copy(conflictGroupId = conflictGroupId, syncStatus = "conflict"))
+                            val isUnlocked = keySessionManager.isUnlocked.value
+                            var forkSuccess = false
 
-                                val forkId = UUID.randomUUID().toString()
-                                val forkEntity = existing.copy(
-                                    id = forkId,
-                                    conflictGroupId = conflictGroupId,
-                                    syncStatus = "conflict"
-                                )
-                                noteDao.insertNote(forkEntity)
+                            if (existing != null && isUnlocked) {
+                                try {
+                                    val encKey = keySessionManager.getEncryptionKey()
+                                    val currentKeyId = keySessionManager.getKeyId()
+                                    val noteUuid = try {
+                                        UUID.fromString(entry.noteId)
+                                    } catch (_: Exception) {
+                                        UUID.nameUUIDFromBytes(entry.noteId.toByteArray(Charsets.UTF_8))
+                                    }
 
-                                val forkOpId = UUID.randomUUID().toString()
-                                outboxDao.insertOutboxEntry(
-                                    OutboxEntity(
-                                        opId = forkOpId,
-                                        noteId = forkId,
-                                        type = "create",
-                                        baseVersion = 0,
-                                        version = 1,
-                                        payload = entry.payload,
-                                        status = "pending",
-                                        createdAt = System.currentTimeMillis()
-                                    )
-                                )
+                                    // Decrypt the rejected mutation's payload
+                                    var plaintextBytes: ByteArray? = null
+                                    if (entry.payload.isNotBlank()) {
+                                        try {
+                                            val payloadDto = json.decodeFromString(OutboxPayloadDto.serializer(), entry.payload)
+                                            val envB64 = payloadDto.envelope
+                                            if (!envB64.isNullOrBlank()) {
+                                                val envBytes = try {
+                                                    Base64.getUrlDecoder().decode(envB64)
+                                                } catch (_: Exception) {
+                                                    Base64.getDecoder().decode(envB64)
+                                                }
+                                                val openRes = EnvelopeV1.open(encKey, currentKeyId, noteUuid, entry.version.toLong(), envBytes)
+                                                if (openRes is OpenResult.Opened) {
+                                                    plaintextBytes = openRes.plaintext
+                                                }
+                                            }
+                                        } catch (_: Exception) {}
+                                    }
 
-                                outboxDao.markAsSent(entry.opId)
-                            } else {
+                                    // Fallback: decrypt existing local entity if payload decode failed
+                                    if (plaintextBytes == null && existing.envelope != null) {
+                                        val openRes = EnvelopeV1.open(encKey, currentKeyId, noteUuid, existing.version.toLong(), existing.envelope)
+                                        if (openRes is OpenResult.Opened) {
+                                            plaintextBytes = openRes.plaintext
+                                        }
+                                    }
+
+                                    if (plaintextBytes != null) {
+                                        val content = json.decodeFromString(NoteContent.serializer(), String(plaintextBytes, Charsets.UTF_8))
+                                        val forkTitle = if (content.title.startsWith("(conflict)", ignoreCase = true)) {
+                                            content.title
+                                        } else {
+                                            "(conflict) ${content.title}"
+                                        }
+                                        val forkContent = content.copy(title = forkTitle)
+                                        val forkJson = json.encodeToString(NoteContent.serializer(), forkContent)
+
+                                        val forkId = UUID.randomUUID().toString()
+                                        val forkUuid = UUID.fromString(forkId)
+                                        val conflictGroupId = existing.conflictGroupId ?: UUID.randomUUID().toString()
+
+                                        // Mark original note with conflictGroupId and status conflict
+                                        noteDao.updateConflictGroup(entry.noteId, conflictGroupId)
+                                        noteDao.updateSyncStatus(entry.noteId, "conflict")
+
+                                        // Seal fork with fork's own UUID to guarantee cryptographic AAD integrity
+                                        val forkEnvelope = EnvelopeV1.seal(
+                                            key = encKey,
+                                            keyId = currentKeyId,
+                                            noteId = forkUuid,
+                                            version = 1L,
+                                            plaintext = forkJson.toByteArray(Charsets.UTF_8)
+                                        )
+                                        val forkChecksum = MessageDigest.getInstance("SHA-256").digest(forkEnvelope)
+                                        val forkNonceBytes = if (forkEnvelope.size >= 22) forkEnvelope.copyOfRange(10, 22) else ByteArray(0)
+                                        val forkCipherBytes = if (forkEnvelope.size >= 22) forkEnvelope.copyOfRange(22, forkEnvelope.size) else ByteArray(0)
+
+                                        val forkEntity = NoteEntity(
+                                            id = forkId,
+                                            ciphertext = forkCipherBytes,
+                                            nonce = forkNonceBytes,
+                                            envelope = forkEnvelope,
+                                            formatVersion = EnvelopeV1.FORMAT,
+                                            keyId = currentKeyId,
+                                            checksum = forkChecksum,
+                                            isVault = forkContent.isVault,
+                                            version = 1,
+                                            updatedAt = System.currentTimeMillis(),
+                                            deleted = false,
+                                            syncStatus = "pending",
+                                            conflictGroupId = conflictGroupId
+                                        )
+                                        noteDao.insertNote(forkEntity)
+
+                                        val forkEnvelopeB64Url = Base64.getUrlEncoder().withoutPadding().encodeToString(forkEnvelope)
+                                        val forkKeyIdB64Url = Base64.getUrlEncoder().withoutPadding().encodeToString(currentKeyId)
+                                        val forkChecksumB64Url = Base64.getUrlEncoder().withoutPadding().encodeToString(forkChecksum)
+                                        val forkEnvelopeB64 = Base64.getEncoder().encodeToString(forkEnvelope)
+                                        val forkNonceB64 = Base64.getEncoder().encodeToString(forkNonceBytes)
+
+                                        val forkPayloadJson = json.encodeToString(
+                                            OutboxPayloadDto.serializer(),
+                                            OutboxPayloadDto(
+                                                ciphertext = forkEnvelopeB64,
+                                                nonce = forkNonceB64,
+                                                envelope = forkEnvelopeB64Url,
+                                                formatVersion = EnvelopeV1.FORMAT,
+                                                keyId = forkKeyIdB64Url,
+                                                checksum = forkChecksumB64Url
+                                            )
+                                        )
+
+                                        val forkOpId = UUID.randomUUID().toString()
+                                        outboxDao.insertOutboxEntry(
+                                            OutboxEntity(
+                                                opId = forkOpId,
+                                                noteId = forkId,
+                                                type = "create",
+                                                baseVersion = 0,
+                                                version = 1,
+                                                payload = forkPayloadJson,
+                                                status = "pending",
+                                                createdAt = System.currentTimeMillis()
+                                            )
+                                        )
+
+                                        outboxDao.markAsSent(entry.opId)
+                                        forkSuccess = true
+                                    }
+                                } catch (e: Exception) {
+                                    android.util.Log.e("SyncManager", "Failed to fork conflicted note ${entry.noteId}", e)
+                                }
+                            }
+
+                            if (!forkSuccess) {
+                                // Vault is locked or decryption failed: mark entry as conflict so it can be retried or resolved once unlocked
                                 outboxDao.markAsConflict(entry.opId)
                                 blockedNotes.add(entry.noteId)
                                 noteDao.updateSyncStatus(entry.noteId, "conflict")

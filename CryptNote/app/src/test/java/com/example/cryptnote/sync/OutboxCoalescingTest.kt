@@ -268,6 +268,12 @@ class FakeNoteDao : NoteDao {
         }
     }
 
+    override suspend fun updateConflictGroup(noteId: String, conflictGroupId: String?) {
+        notes[noteId]?.let {
+            notes[noteId] = it.copy(conflictGroupId = conflictGroupId)
+        }
+    }
+
     override fun observeConflictNotes(): Flow<List<NoteEntity>> =
         flowOf(notes.values.filter { it.conflictGroupId != null && !it.deleted })
 
@@ -322,8 +328,14 @@ class FakeOutboxDao : OutboxDao {
     }
 
     override suspend fun resetFailedEntries(maxAttempts: Int) {
-        entries.values.filter { it.status == "failed" && it.attempts < maxAttempts }.forEach {
+        entries.values.filter { (it.status == "failed" || it.status == "conflict") && it.attempts < maxAttempts }.forEach {
             entries[it.opId] = it.copy(status = "pending")
+        }
+    }
+
+    override suspend fun resetAllFailedEntries() {
+        entries.values.filter { it.status == "failed" || it.status == "conflict" }.forEach {
+            entries[it.opId] = it.copy(status = "pending", attempts = 0)
         }
     }
 

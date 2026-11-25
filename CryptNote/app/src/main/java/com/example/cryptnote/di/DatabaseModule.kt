@@ -29,7 +29,7 @@ object DatabaseModule {
             CryptNoteDatabase.DATABASE_NAME
         )
             .addMigrations(CryptNoteDatabase.MIGRATION_1_2)
-            .fallbackToDestructiveMigration(dropAllTables = true)
+            .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
             .build()
     }
 

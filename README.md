@@ -66,15 +66,15 @@ graph TD
         ARGON["Argon2id (m=64MB, t=3, p=1)"]
         UP & SALT --> ARGON
         ARGON --> KEK["Key Encryption Key (KEK 256-bit)"]
-        
+
         MK["Master Key (MK 256-bit CSPRNG)"]
-        
+
         KEK -->|AES-256-GCM Wrap| PWMK["pass_wrapped_mk (Stored on Server)"]
         RK -->|AES-256-GCM Wrap| RWMK["recovery_wrapped_mk (Stored on Server)"]
-        
+
         KSK["Android Keystore Key (OAEP/StrongBox)"]
         KSK -->|AES-256-GCM Wrap| DWMK["device_wrapped_mk (Local EncryptedPrefs)"]
-        
+
         MK --> PWMK
         MK --> RWMK
         MK --> DWMK
@@ -132,6 +132,7 @@ sequenceDiagram
 ## 💻 Tech Stack
 
 ### Frontend (Android)
+
 - **Language:** Kotlin 2.0+ (JVM 17 Target)
 - **UI Framework:** Jetpack Compose (Material 3 Dynamic Theming)
 - **Architecture:** MVVM + Clean Architecture + Repository Pattern
@@ -145,6 +146,7 @@ sequenceDiagram
 - **Dependency Injection:** Dagger Hilt
 
 ### Backend
+
 - **Runtime:** Node.js 20+ with TypeScript
 - **Framework:** Fastify 5 (High throughput, schema validation via Zod)
 - **Database & ORM:** PostgreSQL 16+ managed through Prisma ORM 6
@@ -192,6 +194,7 @@ CryptoNote/
 ### Prerequisites
 
 Ensure you have the following installed on your development machine:
+
 - **Node.js**: v20 or higher (`node -v`)
 - **Docker & Docker Compose**: For local PostgreSQL database
 - **Android Studio**: Ladybug / Koala or newer with JDK 17
@@ -202,6 +205,7 @@ Ensure you have the following installed on your development machine:
 ### 1. Running Backend Locally
 
 #### Step 1.1: Clone & Configure Environment
+
 Navigate to the `backend/` directory and configure the environment variables:
 
 ```bash
@@ -210,6 +214,7 @@ cp .env.example .env
 ```
 
 Default `.env` configuration for local development:
+
 ```env
 PORT=3000
 HOST=0.0.0.0
@@ -221,22 +226,26 @@ JWT_REFRESH_EXPIRATION="7d"
 ```
 
 #### Step 1.2: Start PostgreSQL with Docker
+
 ```bash
 docker compose up -d
 ```
 
 #### Step 1.3: Install Dependencies & Run Database Migrations
+
 ```bash
 npm install
 npx prisma migrate dev
 ```
 
 #### Step 1.4: Launch the Server
+
 ```bash
 npm run dev
 ```
 
 The Fastify server will start at `http://localhost:3000`. You can verify health status by visiting:
+
 ```bash
 curl http://localhost:3000/health
 # Output: {"status":"ok","timestamp":"..."}
@@ -257,17 +266,19 @@ curl http://localhost:3000/health
 
 The Android client automatically determines how to route network traffic based on its deployment target in [NetworkModule.kt](file:///d:/KotlinAps/CryptoNote/CryptNote/app/src/main/java/com/example/cryptnote/di/NetworkModule.kt):
 
-| Environment | Base URL Used | Notes |
-| :--- | :--- | :--- |
-| **Android Emulator** | `http://10.0.2.2:3000/` | Default loopback alias to host machine localhost. Set `RENDER_BASE_URL = ""` in `NetworkModule.kt` |
-| **Physical Device (via USB)** | `http://127.0.0.1:3000/` | Run `adb reverse tcp:3000 tcp:3000` on your host PC |
-| **Production Cloud (Render)** | `https://cryptonote-backend.onrender.com/` | Pre-configured in `NetworkModule.kt` for cloud connectivity |
+| Environment                   | Base URL Used                              | Notes                                                                                              |
+| :---------------------------- | :----------------------------------------- | :------------------------------------------------------------------------------------------------- |
+| **Android Emulator**          | `http://10.0.2.2:3000/`                    | Default loopback alias to host machine localhost. Set `RENDER_BASE_URL = ""` in `NetworkModule.kt` |
+| **Physical Device (via USB)** | `http://127.0.0.1:3000/`                   | Run `adb reverse tcp:3000 tcp:3000` on your host PC                                                |
+| **Production Cloud (Render)** | `https://cryptonote-backend.onrender.com/` | Pre-configured in `NetworkModule.kt` for cloud connectivity                                        |
 
 > [!TIP]
 > **Testing with a physical phone over USB:**
+>
 > ```bash
 > adb reverse tcp:3000 tcp:3000
 > ```
+>
 > This forwards port 3000 from your phone directly to your host machine's Fastify server!
 
 ---
@@ -275,14 +286,18 @@ The Android client automatically determines how to route network traffic based o
 ## 🧪 Running Test Suites
 
 ### Backend Tests (Jest)
+
 Runs all 50 unit and integration tests (auth, cursor order, keys hardening, envelope integrity):
+
 ```bash
 cd backend
 npm test
 ```
 
 ### Android Unit Tests (Gradle)
+
 Executes all crypto pipeline tests, Room migration checks, and golden vector compatibility:
+
 ```bash
 cd CryptNote
 ./gradlew testDebugUnitTest
@@ -306,13 +321,13 @@ CryptoNote includes a native [render.yaml](file:///d:/KotlinAps/CryptoNote/rende
 
 ## 🛡️ Threat Model & Security Invariants
 
-| Threat Scenario | Mitigation in CryptoNote |
-| :--- | :--- |
-| **Compromised Backend / DB Dump** | Server stores only opaque binary envelopes (`envelope bytea`) and wrapped keys (`pass_wrapped_mk`). Plainttext, titles, tags, and master keys never exist on the server. |
-| **Man-In-The-Middle (MITM) Sniffing** | All traffic requires TLS. Note envelopes are encrypted with AES-256-GCM before transport; network eavesdroppers cannot read payloads even if TLS termination is intercepted. |
-| **Stolen Phone (Device at Rest)** | Notes at rest are encrypted with AES-256-GCM. Unlocking requires the master passphrase or biometric authentication backed by the hardware Android Keystore / StrongBox. |
-| **Forensic Memory Dumps / RAM Peeking** | Upon vault lock or inactivity timeout, all decrypted note caches and raw key byte arrays are wiped in memory with `Arrays.fill(bytes, 0)`. |
-| **Shoulder Surfing / Screen Sniffing** | `FLAG_SECURE` prevents screen recording, screenshots, and recents app switcher thumbnail previews. Sensitive clipboard contents are wiped automatically after 60 seconds. |
+| Threat Scenario                          | Mitigation in CryptoNote                                                                                                                                                        |
+| :--------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Compromised Backend / DB Dump**        | Server stores only opaque binary envelopes (`envelope bytea`) and wrapped keys (`pass_wrapped_mk`). Plainttext, titles, tags, and master keys never exist on the server.        |
+| **Man-In-The-Middle (MITM) Sniffing**    | All traffic requires TLS. Note envelopes are encrypted with AES-256-GCM before transport; network eavesdroppers cannot read payloads even if TLS termination is intercepted.    |
+| **Stolen Phone (Device at Rest)**        | Notes at rest are encrypted with AES-256-GCM. Unlocking requires the master passphrase or biometric authentication backed by the hardware Android Keystore / StrongBox.         |
+| **Forensic Memory Dumps / RAM Peeking**  | Upon vault lock or inactivity timeout, all decrypted note caches and raw key byte arrays are wiped in memory with `Arrays.fill(bytes, 0)`.                                      |
+| **Shoulder Surfing / Screen Sniffing**   | `FLAG_SECURE` prevents screen recording, screenshots, and recents app switcher thumbnail previews. Sensitive clipboard contents are wiped automatically after 60 seconds.       |
 | **Ciphertext Swapping & Version Replay** | AAD binds note UUID, version, and algorithm identifier directly to the GCM authentication tag. Replaying old versions or moving ciphertexts between notes fails MAC validation. |
 
 ---

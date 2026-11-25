@@ -36,7 +36,7 @@ data class ProfileUiState(
     val isBiometricSupported: Boolean = false,
     val totalNotesCount: Int = 0,
     val syncedNotesCount: Int = 0,
-    val serverUrl: String = "https://cryptonote-backend.onrender.com",
+    val serverUrl: String = com.example.cryptnote.di.NetworkModule.getBaseUrl().trimEnd('/'),
     val encryptionAlgorithm: String = "AES-256-GCM (Authenticated AEAD)",
     val kdfAlgorithm: String = "Argon2id (m=64MB, t=3, p=1)",
     val keystoreProvider: String = "Android Keystore (Hardware TEE / StrongBox)",
@@ -106,7 +106,8 @@ class ProfileViewModel @Inject constructor(
                 keyFingerprint = fingerprint,
                 isVaultUnlocked = keySessionManager.isUnlocked.value,
                 isBiometricEnabled = biometricEnabled,
-                isBiometricSupported = biometricAvail
+                isBiometricSupported = biometricAvail,
+                serverUrl = com.example.cryptnote.di.NetworkModule.getBaseUrl().trimEnd('/')
             )
         }
     }

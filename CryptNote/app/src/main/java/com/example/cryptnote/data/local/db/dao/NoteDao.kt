@@ -118,6 +118,12 @@ interface NoteDao {
     suspend fun clearConflictGroup(noteId: String)
 
     /**
+     * Update conflict group association for a note.
+     */
+    @Query("UPDATE notes SET conflict_group_id = :conflictGroupId WHERE id = :noteId")
+    suspend fun updateConflictGroup(noteId: String, conflictGroupId: String?)
+
+    /**
      * Observe all active notes with conflict groups.
      */
     @Query("SELECT * FROM notes WHERE conflict_group_id IS NOT NULL AND deleted = 0")

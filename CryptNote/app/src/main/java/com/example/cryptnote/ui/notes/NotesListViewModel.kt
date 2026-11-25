@@ -384,6 +384,13 @@ class NotesListViewModel @Inject constructor(
     }
 
     fun onTogglePin(note: Note) {
+        if (note.title.startsWith("⚠️") || note.title.startsWith("🔒") ||
+            note.body.contains("could not be decrypted", ignoreCase = true) ||
+            note.body.contains("different key", ignoreCase = true) ||
+            note.body.contains("Vault is locked", ignoreCase = true) ||
+            note.body.contains("Unlock to decrypt", ignoreCase = true)) {
+            return
+        }
         viewModelScope.launch {
             val updated = note.copy(
                 pinned = !note.pinned,

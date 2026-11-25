@@ -60,12 +60,19 @@ interface OutboxDao {
     suspend fun markAsFailed(opId: String)
 
     /**
-     * Reset failed entries back to pending for retry.
+     * Reset failed or conflicted entries back to pending for retry.
      * Only resets entries that haven't exceeded the max attempt count.
      * @param maxAttempts Maximum number of retries before giving up.
      */
-    @Query("UPDATE outbox SET status = 'pending' WHERE status = 'failed' AND attempts < :maxAttempts")
-    suspend fun resetFailedEntries(maxAttempts: Int = 5)
+    @Query("UPDATE outbox SET status = 'pending' WHERE status IN ('failed', 'conflict') AND attempts < :maxAttempts")
+    suspend fun resetFailedEntries(maxAttempts: Int = 10)
+
+    /**
+     * Unconditionally reset failed and conflicted entries to pending and clear attempt counter.
+     * Used on network reconnection and manual user refresh.
+     */
+    @Query("UPDATE outbox SET status = 'pending', attempts = 0 WHERE status IN ('failed', 'conflict')")
+    suspend fun resetAllFailedEntries()
 
     /**
      * Delete an outbox entry by its operation ID.
