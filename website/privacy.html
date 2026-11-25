@@ -8,14 +8,14 @@
     <!-- Primary Meta Tags -->
     <title>Privacy Policy &amp; Data Deletion — CryptoNote</title>
     <meta name="title" content="Privacy Policy &amp; Data Deletion — CryptoNote" />
-    <meta name="description" content="Privacy Policy and Data Deletion procedures for CryptoNote. Learn how our zero-knowledge end-to-end encryption protects your notes, and how to delete your account." />
+    <meta name="description" content="Plain-English privacy policy and account deletion steps for CryptoNote. We can't read your notes, and we don't track you." />
     <meta name="theme-color" content="#0B0F17" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://roshankumar404.github.io/CryptoNote/privacy.html" />
-    <meta property="og:title" content="Privacy Policy — CryptoNote Zero-Knowledge Notes" />
-    <meta property="og:description" content="Zero-knowledge by design. Your notes and encryption keys never leave your device unencrypted." />
+    <meta property="og:title" content="Privacy Policy — CryptoNote" />
+    <meta property="og:description" content="The short version: We can't read your notes, and we don't want to. Your notes are encrypted on your device before they ever touch the cloud." />
 
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23D99B53' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/%3E%3Cpath d='M12 8v4'/%3E%3Cpath d='M12 16h.01'/%3E%3C/svg%3E" />
@@ -32,17 +32,17 @@
         .privacy-page-wrapper {
             padding-top: 7rem;
             padding-bottom: 5rem;
-            max-width: 900px;
+            max-width: 860px;
             margin: 0 auto;
         }
         .privacy-card {
-            background: rgba(18, 24, 38, 0.85);
+            background: rgba(18, 24, 38, 0.88);
             border: 1px solid var(--border-color);
             border-radius: var(--radius-xl);
             padding: 3rem;
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
         }
         @media (max-width: 640px) {
             .privacy-card {
@@ -53,12 +53,12 @@
             }
         }
         .privacy-header {
-            margin-bottom: 2.5rem;
+            margin-bottom: 2rem;
             border-bottom: 1px solid var(--border-color);
             padding-bottom: 1.5rem;
         }
         .privacy-header h1 {
-            font-size: clamp(1.8rem, 4vw, 2.6rem);
+            font-size: clamp(1.8rem, 4vw, 2.4rem);
             font-weight: 800;
             color: #FFFFFF;
             margin-bottom: 0.5rem;
@@ -72,22 +72,22 @@
             flex-wrap: wrap;
         }
         .privacy-section {
-            margin-bottom: 2.5rem;
+            margin-bottom: 2.2rem;
         }
         .privacy-section h2 {
-            font-size: 1.4rem;
+            font-size: 1.3rem;
             font-weight: 700;
             color: var(--accent-primary);
-            margin-bottom: 1rem;
+            margin-bottom: 0.85rem;
             display: flex;
             align-items: center;
-            gap: 0.6rem;
+            gap: 0.5rem;
         }
         .privacy-section p {
             color: var(--text-secondary);
             font-size: 1rem;
             line-height: 1.7;
-            margin-bottom: 1rem;
+            margin-bottom: 0.9rem;
         }
         .privacy-section ul {
             list-style: none;
@@ -96,44 +96,52 @@
         }
         .privacy-section ul li {
             position: relative;
-            padding-left: 1.6rem;
-            margin-bottom: 0.75rem;
+            padding-left: 1.5rem;
+            margin-bottom: 0.65rem;
             color: var(--text-secondary);
             line-height: 1.6;
             font-size: 0.95rem;
         }
         .privacy-section ul li::before {
-            content: "✓";
+            content: "•";
             position: absolute;
-            left: 0;
+            left: 0.3rem;
             color: var(--accent-primary);
             font-weight: bold;
+            font-size: 1.2rem;
+            line-height: 1.2;
         }
-        .highlight-box {
+        .takeaway-card {
             background: rgba(217, 155, 83, 0.08);
             border: 1px solid rgba(217, 155, 83, 0.25);
             border-radius: var(--radius-lg);
             padding: 1.25rem 1.5rem;
-            margin: 1.25rem 0;
+            margin: 1.5rem 0;
         }
-        .highlight-box h3 {
+        .takeaway-card h3 {
             color: var(--accent-primary);
-            font-size: 1.1rem;
-            margin-bottom: 0.5rem;
+            font-size: 1.05rem;
+            margin-bottom: 0.4rem;
             font-weight: 700;
         }
-        .deletion-steps {
-            background: rgba(11, 15, 23, 0.6);
+        .deletion-box {
+            background: rgba(11, 15, 23, 0.65);
             border: 1px solid var(--border-color);
             border-radius: var(--radius-md);
-            padding: 1.25rem;
+            padding: 1.25rem 1.4rem;
             margin-top: 1rem;
         }
-        .deletion-steps ol {
-            padding-left: 1.5rem;
-            margin: 0;
+        .deletion-box h3 {
+            color: #FFFFFF;
+            font-size: 1.05rem;
+            margin-bottom: 0.4rem;
+        }
+        .deletion-box ol {
+            padding-left: 1.3rem;
+            margin: 0.5rem 0 0 0;
             color: var(--text-secondary);
             line-height: 1.7;
+            font-size: 0.95rem;
         }
         .back-nav-link {
             display: inline-flex;
@@ -143,11 +151,31 @@
             font-size: 0.95rem;
             font-weight: 600;
             text-decoration: none;
-            margin-bottom: 1.5rem;
+            margin-bottom: 1.25rem;
             transition: transform 0.2s ease;
         }
         .back-nav-link:hover {
             transform: translateX(-4px);
+        }
+        .tag-pill {
+            display: inline-block;
+            padding: 0.15rem 0.6rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-right: 0.4rem;
+        }
+        .tag-stored {
+            background: rgba(52, 211, 153, 0.15);
+            color: #34D399;
+            border: 1px solid rgba(52, 211, 153, 0.3);
+        }
+        .tag-never {
+            background: rgba(248, 113, 113, 0.15);
+            color: #F87171;
+            border: 1px solid rgba(248, 113, 113, 0.3);
         }
     </style>
 </head>
@@ -176,133 +204,124 @@
     </header>
 
     <main class="container privacy-page-wrapper">
-        <a href="index.html" class="back-nav-link">← Return to Showcase</a>
+        <a href="index.html" class="back-nav-link">← Back to Showcase</a>
 
         <article class="privacy-card">
             <header class="privacy-header">
                 <h1>Privacy Policy &amp; Data Deletion</h1>
                 <div class="privacy-meta">
-                    <span><strong>Effective Date:</strong> November 25, 2026</span>
-                    <span><strong>Application:</strong> CryptoNote for Android</span>
-                    <span><strong>License:</strong> Open-Source (Apache 2.0)</span>
+                    <span><strong>Last Updated:</strong> November 25, 2026</span>
+                    <span><strong>Author:</strong> Roshan Kumar (Independent Open-Source Developer)</span>
                 </div>
             </header>
 
+            <!-- Quick summary -->
+            <div class="takeaway-card">
+                <h3>The TL;DR</h3>
+                <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem; line-height: 1.6;">
+                    <strong>We cannot read your notes, and we never want to.</strong><br />
+                    CryptoNote encrypts your notes on your phone before they ever reach our servers. All we hold in the cloud is scrambled ciphertext. We do not track you, we show zero ads, and we will never sell or monetize your data.
+                </p>
+            </div>
+
             <!-- Section 1 -->
             <section class="privacy-section">
-                <h2>1. Core Principle: Zero-Knowledge by Design</h2>
+                <h2>1. Why We Built This</h2>
                 <p>
-                    CryptoNote was engineered from the first line of code on a simple cryptographic truth: <strong>you own your keys, and only you should ever read your notes</strong>.
+                    Most note-taking apps store your personal thoughts, passwords, and journal entries in plain text on their company servers. Even when they claim "encryption at rest," they still hold the keys to unlock and read your files.
                 </p>
                 <p>
-                    Unlike traditional cloud note applications that encrypt data only in transit or hold decryption keys on company servers, CryptoNote performs <strong>client-side authenticated encryption</strong> directly on your Android device before any byte leaves your phone.
+                    We built CryptoNote to work like a real safe: <strong>you hold the only key</strong>. Your master passphrase never leaves your phone. Everything is encrypted right on your device using AES-256-GCM. When you sync notes across your devices, our backend only acts as a dumb courier delivering locked boxes it cannot open.
                 </p>
-                <div class="highlight-box">
-                    <h3>Cryptographic Guarantee</h3>
-                    <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem;">
-                        Our sync servers only store opaque, encrypted binary envelopes (Envelope V1). We do not possess, cannot generate, and can never access your master passphrase, decryption keys, note titles, or note contents. Even if our servers were seized or compromised, your data remains mathematically indecipherable ciphertext.
-                    </p>
-                </div>
             </section>
 
             <!-- Section 2 -->
             <section class="privacy-section">
-                <h2>2. Information We Collect</h2>
-                <p>
-                    We collect only the bare minimum information required to authenticate your account and sync your encrypted notes:
-                </p>
+                <h2>2. What We Store</h2>
+                <p>We only keep what is strictly necessary to make sync and login work:</p>
                 <ul>
-                    <li><strong>Account Credentials:</strong> Your registered email address and an Argon2id-derived authentication token used to authenticate sessions over TLS.</li>
-                    <li><strong>Encrypted Envelopes:</strong> Opaque binary payloads containing your AES-256-GCM encrypted notes, nonces, format version bytes, and cryptographic checksums.</li>
-                    <li><strong>Sync Sequence Metadata:</strong> Server-assigned monotonic version counters (sequence integers) and client device IDs used exclusively to ensure deterministic multi-device synchronization without conflicts.</li>
-                </ul>
-
-                <h3 style="color: #FFF; font-size: 1.1rem; margin: 1.25rem 0 0.5rem 0;">What We NEVER Collect:</h3>
-                <ul style="list-style: none;">
-                    <li style="color: #F87171;">✗ <strong>Plaintext Notes or Content:</strong> We never see your text, titles, markdown, checklists, or media.</li>
-                    <li style="color: #F87171;">✗ <strong>Master Encryption Keys or Passphrases:</strong> Master keys are derived on-device and stored exclusively in the Android Keystore hardware module (TEE/StrongBox).</li>
-                    <li style="color: #F87171;">✗ <strong>Biometric Data:</strong> Fingerprint and face authentication are processed entirely by Android's BiometricPrompt hardware API. Biometric data never leaves your hardware security enclave.</li>
-                    <li style="color: #F87171;">✗ <strong>Location, Advertising, or Telemetry Data:</strong> No location tracking, no advertising identifiers, and no behavioral analytics SDKs are embedded in the app.</li>
+                    <li><span class="tag-pill tag-stored">Stored</span><strong>Your Email:</strong> Used solely to sign in, distinguish your account, and prevent unauthorized takeovers.</li>
+                    <li><span class="tag-pill tag-stored">Stored</span><strong>Authentication Token:</strong> A derived login hash so the server can verify your password without ever knowing what your actual password is.</li>
+                    <li><span class="tag-pill tag-stored">Stored</span><strong>Scrambled Note Envelopes:</strong> Opaque binary packages containing your encrypted note, a unique nonce, and a checksum. To our server, these look like random noise.</li>
+                    <li><span class="tag-pill tag-stored">Stored</span><strong>Sync Version Counters:</strong> Simple counter numbers (e.g. version 1, version 2) so your devices know which note edit is the newest.</li>
                 </ul>
             </section>
 
             <!-- Section 3 -->
             <section class="privacy-section">
-                <h2>3. Security &amp; Data Transmission</h2>
-                <p>
-                    CryptoNote implements defense-in-depth security standards:
-                </p>
+                <h2>3. What We Never Collect</h2>
+                <p>We believe in data minimization. If we don't have it, nobody can steal it:</p>
                 <ul>
-                    <li><strong>Encryption in Transit:</strong> All communications between your Android device and our backend servers are strictly enforced over modern HTTPS / TLS 1.3. Cleartext HTTP traffic is permanently blocked in the application manifest.</li>
-                    <li><strong>Encryption at Rest:</strong> Local storage utilizes encrypted SQLite databases and AES-256-GCM authenticated envelopes.</li>
-                    <li><strong>Anti-Forensic Memory Hygiene:</strong> Key buffers and passphrase character arrays in RAM are actively scrubbed and zeroized immediately after cryptographic derivation.</li>
-                    <li><strong>Screenshot &amp; App Switcher Protection:</strong> When Vault Mode is enabled, the window is marked secure (<code>FLAG_SECURE</code>) to prevent unauthorized screen captures and task snapshots.</li>
+                    <li><span class="tag-pill tag-never">Never</span><strong>Your Note Text or Titles:</strong> Plaintext never leaves your phone. We can't see your shopping lists, diary, or passwords.</li>
+                    <li><span class="tag-pill tag-never">Never</span><strong>Your Master Key or Passphrase:</strong> Stored locally inside Android's hardware security chip (TEE / StrongBox Keystore). We cannot reset or recover it if you lose it.</li>
+                    <li><span class="tag-pill tag-never">Never</span><strong>Your Fingerprint or Face Data:</strong> Biometric unlock is handled entirely by Android's system prompt. We never get biometric data.</li>
+                    <li><span class="tag-pill tag-never">Never</span><strong>Your Location or Contacts:</strong> The app doesn't ask for location, contacts, camera, or phone storage permissions.</li>
+                    <li><span class="tag-pill tag-never">Never</span><strong>Analytics or Ad Trackers:</strong> No Google Analytics, no Facebook SDK, no advertising IDs, no trackers. Zero.</li>
                 </ul>
             </section>
 
             <!-- Section 4 -->
             <section class="privacy-section">
-                <h2>4. Third-Party Services &amp; Infrastructure</h2>
+                <h2>4. Infrastructure &amp; Security</h2>
                 <p>
-                    CryptoNote relies only on standard cloud infrastructure providers to run its sync servers:
+                    All traffic between your phone and our sync server is forced over modern HTTPS / TLS 1.3. Plaintext HTTP traffic is blocked at the operating system level inside our Android manifest.
                 </p>
-                <ul>
-                    <li><strong>Fly.io:</strong> Hosts our containerized Fastify API services in isolated regional microVMs.</li>
-                    <li><strong>PostgreSQL Database:</strong> Stores only user authentication records and opaque encrypted envelopes.</li>
-                </ul>
                 <p>
-                    We <strong>do not sell, rent, monetize, or share</strong> any user data with advertisers, data brokers, or third-party marketing networks.
+                    Our backend runs on <strong>Fly.io</strong> microVMs with an isolated PostgreSQL database. That's the entire stack. We don't pipe your traffic through third-party data aggregators.
                 </p>
             </section>
 
             <!-- Section 5 -->
             <section class="privacy-section" id="data-deletion">
-                <h2>5. Account &amp; Data Deletion Policy</h2>
+                <h2>5. How to Delete Your Account &amp; Data</h2>
                 <p>
-                    In accordance with Google Play Developer Policy and global privacy regulations (GDPR, CCPA), you have the absolute right to delete your account and all associated data at any time.
+                    You shouldn't have to jump through hoops to delete your data. You have complete control:
                 </p>
 
-                <div class="deletion-steps">
-                    <h3 style="color: #FFF; font-size: 1.05rem; margin-bottom: 0.5rem;">Option A: In-App Instant Deletion (Self-Service)</h3>
-                    <p style="font-size: 0.95rem; margin-bottom: 0.75rem;">You can permanently erase your account and all cloud data directly from your device:</p>
+                <div class="deletion-box">
+                    <h3>Option A: Instant Delete From the App</h3>
+                    <p style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--text-secondary);">
+                        If you have your phone with you:
+                    </p>
                     <ol>
-                        <li>Open <strong>CryptoNote</strong> on your Android phone.</li>
-                        <li>Navigate to the <strong>Profile &amp; Settings</strong> screen (tap your avatar icon in the top bar).</li>
+                        <li>Open <strong>CryptoNote</strong>.</li>
+                        <li>Tap your profile avatar in the top right to open settings.</li>
                         <li>Scroll down and tap <strong style="color: #F87171;">"Erase &amp; Reset Account"</strong>.</li>
-                        <li>Confirm the prompt. Your local encryption keys, local database, and all cloud-synced envelopes will be instantaneously wiped from both your device and our production servers.</li>
+                        <li>Confirm the prompt.</li>
                     </ol>
+                    <p style="font-size: 0.9rem; margin-top: 0.75rem; color: var(--text-muted); line-height: 1.5;">
+                        This instantly wipes your local encryption keys and notes from your phone, and instructs our server to immediately delete your email, login records, and all encrypted backups permanently.
+                    </p>
                 </div>
 
-                <div class="deletion-steps" style="margin-top: 1.25rem;">
-                    <h3 style="color: #FFF; font-size: 1.05rem; margin-bottom: 0.5rem;">Option B: Web-Based Deletion Request</h3>
-                    <p style="font-size: 0.95rem; margin-bottom: 0.75rem;">If you have uninstalled the app or lost access to your device, you can request manual account deletion:</p>
+                <div class="deletion-box">
+                    <h3>Option B: Delete via Email (If you uninstalled the app)</h3>
+                    <p style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--text-secondary);">
+                        If you no longer have access to your device or already uninstalled the app:
+                    </p>
                     <ol>
-                        <li>Send an email to <strong><a href="mailto:roshankuar951@gmail.com?subject=CryptoNote%20Account%20Deletion%20Request" style="color: var(--accent-primary);">roshankuar951@gmail.com</a></strong> with the subject line <code>CryptoNote Account Deletion Request</code>.</li>
-                        <li>Include the registered email address associated with your CryptoNote account.</li>
-                        <li>Within <strong>48 hours</strong> of receipt and identity confirmation, all account credentials, authentication records, and encrypted note envelopes associated with your email will be permanently purged from our production databases.</li>
+                        <li>Send an email to <strong><a href="mailto:roshankuar951@gmail.com?subject=CryptoNote%20Account%20Deletion%20Request" style="color: var(--accent-primary);">roshankuar951@gmail.com</a></strong>.</li>
+                        <li>Use the subject line: <code>CryptoNote Account Deletion Request</code>.</li>
+                        <li>Send it from the email address registered with your account so we can verify ownership.</li>
                     </ol>
+                    <p style="font-size: 0.9rem; margin-top: 0.75rem; color: var(--text-muted); line-height: 1.5;">
+                        Within 48 hours, we will permanently purge your account record, email, and all encrypted envelopes from our database.
+                    </p>
                 </div>
             </section>
 
             <!-- Section 6 -->
             <section class="privacy-section">
-                <h2>6. Children's Privacy</h2>
+                <h2>6. Open Source &amp; Verification</h2>
                 <p>
-                    CryptoNote does not knowingly collect, solicit, or maintain personal information from children under the age of 13. If you believe a child under 13 has provided us with personal information, please contact us immediately for prompt deletion.
+                    Don't take our word for it. CryptoNote is completely open-source under the Apache 2.0 license. You can inspect the Android client code, encryption routines, and server API on GitHub:
                 </p>
-            </section>
-
-            <!-- Section 7 -->
-            <section class="privacy-section">
-                <h2>7. Contact &amp; Open-Source Verification</h2>
                 <p>
-                    CryptoNote is fully open-source. Anyone can audit our cryptographic algorithms, API endpoints, and data processing routines directly on GitHub:
+                    👉 <a href="https://github.com/RoshanKumar404/CryptoNote" target="_blank" rel="noopener" style="color: var(--accent-primary); font-weight: 600;">github.com/RoshanKumar404/CryptoNote</a>
                 </p>
-                <ul>
-                    <li><strong>GitHub Repository:</strong> <a href="https://github.com/RoshanKumar404/CryptoNote" target="_blank" rel="noopener" style="color: var(--accent-primary);">https://github.com/RoshanKumar404/CryptoNote</a></li>
-                    <li><strong>Maintainer Email:</strong> <a href="mailto:roshankuar951@gmail.com" style="color: var(--accent-primary);">roshankuar951@gmail.com</a></li>
-                    <li><strong>Bug &amp; Security Reports:</strong> <a href="https://github.com/RoshanKumar404/CryptoNote/issues" target="_blank" rel="noopener" style="color: var(--accent-primary);">GitHub Issue Tracker</a></li>
-                </ul>
+                <p>
+                    If you have questions, feedback, or found a security concern, reach out directly at <a href="mailto:roshankuar951@gmail.com" style="color: var(--accent-primary);">roshankuar951@gmail.com</a> or open an issue on our GitHub repository.
+                </p>
             </section>
         </article>
     </main>
