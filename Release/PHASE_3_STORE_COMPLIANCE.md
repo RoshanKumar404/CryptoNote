@@ -90,9 +90,11 @@ Google reviewers require login credentials to verify authentication and sync:
 
 Google Play policy requires two distinct deletion mechanisms:
 
-1. **In-App Deletion (Verified):**
+1. **In-App Deletion (Implemented & Verified):**
    Users can navigate to:  
-   *Profile Screen > Tap "Erase & Reset Account"*  
-   This immediately executes `authRepository.logout()`, deletes local SQLite databases, zeroizes memory, and triggers an account wipe on the server.
-2. **Web-Based Deletion (Verified):**
+   *Profile Screen > Tap "Delete Account Permanently"*  
+   - Displays a double-confirmation alert dialog warning that the action is irreversible.
+   - Upon confirmation, calls `DELETE /auth/account` on the backend, which executes `prisma.user.delete()` (cascading complete deletion of all user records, notes, encryption keys, sync states, and sessions in PostgreSQL).
+   - Clears local Android Keystore credentials, wipes Room/SQLCipher database tables, zeroizes in-memory session keys, and navigates back to the Login screen.
+2. **Web-Based Deletion (Public & Verified):**
    Documented publicly on [privacy.html#data-deletion](https://roshankumar404.github.io/CryptoNote/privacy.html#data-deletion). Users can request deletion via email to `roshankuar951@gmail.com`.

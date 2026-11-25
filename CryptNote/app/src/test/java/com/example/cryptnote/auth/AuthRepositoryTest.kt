@@ -342,5 +342,8 @@ class AuthRepositoryTest {
 
         override suspend fun getMe(): Response<UserResponseDto> =
             throw NotImplementedError()
+
+        override suspend fun deleteAccount(authorization: String): Response<Unit> =
+            Response.success(Unit)
     }
 }

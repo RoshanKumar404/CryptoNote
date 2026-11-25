@@ -198,5 +198,8 @@ class TokenAuthenticatorTest {
 
         override suspend fun getMe(): RetrofitResponse<UserResponseDto> =
             throw NotImplementedError()
+
+        override suspend fun deleteAccount(authorization: String): RetrofitResponse<Unit> =
+            throw NotImplementedError()
     }
 }

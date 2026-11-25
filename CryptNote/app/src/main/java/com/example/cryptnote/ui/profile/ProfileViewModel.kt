@@ -157,4 +157,19 @@ class ProfileViewModel @Inject constructor(
             }
         }
     }
+
+    fun deleteAccount() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            val result = authRepository.deleteAccount()
+            _uiState.update { it.copy(isLoading = false) }
+            if (result.isSuccess) {
+                _eventFlow.emit(ProfileUiEvent.ShowMessage("Account and all data permanently deleted"))
+                _eventFlow.emit(ProfileUiEvent.NavigateToAuth)
+            } else {
+                val err = result.exceptionOrNull()?.message ?: "Failed to delete account"
+                _eventFlow.emit(ProfileUiEvent.ShowMessage(err))
+            }
+        }
+    }
 }

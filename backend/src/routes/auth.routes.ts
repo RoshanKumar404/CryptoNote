@@ -97,4 +97,16 @@ export async function authRoutes(fastify: FastifyInstance, _opts: FastifyPluginO
       },
     });
   });
+
+  /**
+   * DELETE /auth/account (Protected Route)
+   * Irrevocably purges the authenticated user and all cascaded data.
+   */
+  fastify.delete('/account', { preHandler: [authenticate] }, async (request, reply) => {
+    await authService.deleteAccount(request.user!.userId);
+    return reply.status(200).send({
+      success: true,
+      message: 'Account and all associated encrypted data permanently deleted',
+    });
+  });
 }

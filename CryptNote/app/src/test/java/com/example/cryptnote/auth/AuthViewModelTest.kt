@@ -193,6 +193,11 @@ class AuthViewModelTest {
             _authState.value = AuthState.Unauthenticated
         }
 
+        override suspend fun deleteAccount(): Result<Unit> {
+            _authState.value = AuthState.Unauthenticated
+            return Result.success(Unit)
+        }
+
         override suspend fun checkSession(): Result<Unit> = Result.success(Unit)
     }
 }

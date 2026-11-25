@@ -54,4 +54,12 @@ interface AuthApi {
      */
     @GET("auth/me")
     suspend fun getMe(): Response<UserResponseDto>
+
+    /**
+     * Permanently deletes the user account, cloud sync data, and encrypted notes.
+     */
+    @retrofit2.http.DELETE("auth/account")
+    suspend fun deleteAccount(
+        @retrofit2.http.Header("Authorization") authorization: String
+    ): Response<Unit>
 }

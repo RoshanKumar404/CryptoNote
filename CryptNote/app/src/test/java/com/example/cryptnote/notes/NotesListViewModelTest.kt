@@ -390,6 +390,11 @@ class NotesListViewModelTest {
             loggedOut = true
             _authState.value = com.example.cryptnote.data.repository.AuthState.Unauthenticated
         }
+        override suspend fun deleteAccount(): Result<Unit> {
+            loggedOut = true
+            _authState.value = com.example.cryptnote.data.repository.AuthState.Unauthenticated
+            return Result.success(Unit)
+        }
         override suspend fun checkSession(): Result<Unit> = Result.success(Unit)
     }
 }

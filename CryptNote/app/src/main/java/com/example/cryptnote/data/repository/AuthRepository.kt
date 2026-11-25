@@ -48,6 +48,7 @@ interface AuthRepository {
     suspend fun resetAccount(email: String, passphrase: CharArray): Result<Unit>
     suspend fun changePassword(currentPassphrase: CharArray, newPassphrase: CharArray): Result<Unit>
     suspend fun logout()
+    suspend fun deleteAccount(): Result<Unit>
     suspend fun checkSession(): Result<Unit>
 }
 
@@ -509,6 +510,26 @@ class AuthRepositoryImpl @Inject constructor(
             } catch (_: Exception) {}
         }
         _authState.value = AuthState.Unauthenticated
+    }
+
+    override suspend fun deleteAccount(): Result<Unit> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val token = tokenStorageManager.getAccessToken()
+                if (!token.isNullOrBlank()) {
+                    try {
+                        authApi.deleteAccount("Bearer $token")
+                    } catch (e: Exception) {
+                        android.util.Log.w("AuthRepository", "Remote account deletion API call failed: ${e.message}")
+                    }
+                }
+                logout()
+                Result.success(Unit)
+            } catch (e: Exception) {
+                logout()
+                Result.failure(e)
+            }
+        }
     }
 
     override suspend fun checkSession(): Result<Unit> {

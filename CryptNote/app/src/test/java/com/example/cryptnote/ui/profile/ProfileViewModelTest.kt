@@ -166,6 +166,22 @@ class ProfileViewModelTest {
         job.cancel()
     }
 
+    @Test
+    fun deleteAccount_callsAuthRepositoryDeleteAccountAndEmitsEvent() = runTest {
+        val events = mutableListOf<ProfileUiEvent>()
+        val job = launch {
+            viewModel.eventFlow.collect { events.add(it) }
+        }
+
+        viewModel.deleteAccount()
+        advanceUntilIdle()
+
+        assertTrue(fakeAuthRepository.loggedOut)
+        assertTrue(events.any { it is ProfileUiEvent.NavigateToAuth })
+
+        job.cancel()
+    }
+
     private fun createNote(id: String, syncStatus: SyncStatus): Note {
         return Note(
             id = id,
@@ -207,6 +223,11 @@ class ProfileViewModelTest {
         override suspend fun logout() {
             loggedOut = true
             _authState.value = AuthState.Unauthenticated
+        }
+        override suspend fun deleteAccount(): Result<Unit> {
+            loggedOut = true
+            _authState.value = AuthState.Unauthenticated
+            return Result.success(Unit)
         }
         override suspend fun checkSession(): Result<Unit> = Result.success(Unit)
     }

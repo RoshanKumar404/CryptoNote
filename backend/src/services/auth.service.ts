@@ -154,6 +154,24 @@ export class AuthService {
   }
 
   /**
+   * Permanently deletes a user account and cascades to all encrypted notes,
+   * sync cursors, wrapped keys, devices, and session tokens.
+   */
+  async deleteAccount(userId: string): Promise<void> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new AuthError(404, 'User account not found');
+    }
+
+    await prisma.user.delete({
+      where: { id: userId },
+    });
+  }
+
+  /**
    * Resets user password hash and clears un-decryptable server data.
    * Useful when user forgets their master passphrase or needs an account reset.
    */

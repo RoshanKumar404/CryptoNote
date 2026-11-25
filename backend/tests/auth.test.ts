@@ -297,4 +297,48 @@ describe('Auth Service (BE-2 Integration Tests)', () => {
       expect(response.statusCode).toBe(404);
     });
   });
+
+  describe('DELETE /auth/account', () => {
+    it('should permanently delete user account and associated data', async () => {
+      const deleteEmail = `delete_me_${Date.now()}@example.com`;
+      const regRes = await app.inject({
+        method: 'POST',
+        url: '/auth/register',
+        payload: {
+          email: deleteEmail,
+          password: 'Password123!',
+        },
+      });
+      expect(regRes.statusCode).toBe(201);
+      const regBody = JSON.parse(regRes.body);
+      const deleteToken = regBody.accessToken;
+      const deleteUserId = regBody.user.id;
+
+      // Call DELETE /auth/account
+      const delRes = await app.inject({
+        method: 'DELETE',
+        url: '/auth/account',
+        headers: {
+          authorization: `Bearer ${deleteToken}`,
+        },
+      });
+      expect(delRes.statusCode).toBe(200);
+
+      // Verify user no longer exists in database
+      const checkUser = await prisma.user.findUnique({
+        where: { id: deleteUserId },
+      });
+      expect(checkUser).toBeNull();
+
+      // Subsequent /auth/me should fail
+      const meRes = await app.inject({
+        method: 'GET',
+        url: '/auth/me',
+        headers: {
+          authorization: `Bearer ${deleteToken}`,
+        },
+      });
+      expect(meRes.statusCode).toBe(404);
+    });
+  });
 });
