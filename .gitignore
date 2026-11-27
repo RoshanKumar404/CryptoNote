@@ -45,3 +45,6 @@ captures/
 .externalNativeBuild/
 .cxx/
 docs/
+
+# Website runtime metrics
+website/.metrics.json

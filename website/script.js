@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initFaq();
   initCopyButtons();
   initMobileMenu();
+  initMetricsCounter();
 });
 
 /* ==========================================================================
@@ -106,9 +107,9 @@ function initPalettePicker() {
     validPalettes.forEach(p => document.body.classList.remove(`palette-${p}`));
     document.body.classList.add(`palette-${paletteName}`);
 
-    if (activeDot && paletteColors[paletteName]) {
-      activeDot.style.background = paletteColors[paletteName];
-      activeDot.style.boxShadow = `0 0 6px ${paletteColors[paletteName]}`;
+    if (activeDot) {
+      activeDot.style.background = '';
+      activeDot.style.boxShadow = '';
     }
 
     dropdownItems.forEach(item => {
@@ -776,4 +777,173 @@ function initMobileMenu() {
       }
     });
   }
+}
+
+/* ==========================================================================
+   12. Metrics Counters (Zero-Server CounterAPI with Device Deduplication)
+   ========================================================================== */
+function initMetricsCounter() {
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+  // CounterAPI v2 Workspace configuration (https://counterapi.dev)
+  const COUNTER_CONFIG = {
+    workspace: 'roshankumars-team-6373',
+    viewsCounter: 'pageviewnfksns',
+    downloadsCounter: 'wjvmtCryptNoteadtbxasaxfiw',
+    apiBase: 'https://api.counterapi.dev/v2'
+  };
+
+  const STORAGE_KEYS = {
+    visited: 'cn_metric_visited_v1',
+    downloaded: 'cn_metric_downloaded_v1',
+    cachedViews: 'cn_cached_views',
+    cachedDownloads: 'cn_cached_downloads'
+  };
+
+  const viewCountElements = [
+    document.getElementById('hero-views-count'),
+    document.getElementById('download-views-count')
+  ].filter(Boolean);
+
+  const downloadCountElements = [
+    document.getElementById('hero-downloads-count'),
+    document.getElementById('download-downloads-count')
+  ].filter(Boolean);
+
+  let state = {
+    views: parseInt(localStorage.getItem(STORAGE_KEYS.cachedViews) || '0', 10),
+    downloads: parseInt(localStorage.getItem(STORAGE_KEYS.cachedDownloads) || '0', 10)
+  };
+
+  const renderStats = () => {
+    const formattedViews = state.views.toLocaleString();
+    const formattedDownloads = state.downloads.toLocaleString();
+
+    viewCountElements.forEach(el => { el.textContent = formattedViews; });
+    downloadCountElements.forEach(el => { el.textContent = formattedDownloads; });
+  };
+
+  renderStats();
+
+  // Helper to interact with CounterAPI v2
+  const callCounterApi = async (counterSlug, action = 'get') => {
+    const url = action === 'up'
+      ? `${COUNTER_CONFIG.apiBase}/${COUNTER_CONFIG.workspace}/${counterSlug}/up`
+      : `${COUNTER_CONFIG.apiBase}/${COUNTER_CONFIG.workspace}/${counterSlug}`;
+
+    const headers = {
+      'Accept': 'application/json'
+    };
+
+    const res = await fetch(url, { method: 'GET', headers });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const body = await res.json();
+    if (typeof body?.data?.up_count === 'number') {
+      return body.data.up_count;
+    }
+    if (typeof body?.count === 'number') {
+      return body.count;
+    }
+    return null;
+  };
+
+  // 1. Process Page View with deduplication
+  const handlePageView = async () => {
+    // If running with local preview server, use local serve.cjs endpoints
+    if (isLocal) {
+      try {
+        const res = await fetch('/api/metrics/view', { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data.views === 'number') state.views = data.views;
+          if (typeof data.downloads === 'number') state.downloads = data.downloads;
+          renderStats();
+          return;
+        }
+      } catch (_) {}
+    }
+
+    const alreadyVisited = localStorage.getItem(STORAGE_KEYS.visited);
+    try {
+      if (!alreadyVisited) {
+        // First visit: increment counter
+        const newCount = await callCounterApi(COUNTER_CONFIG.viewsCounter, 'up');
+        if (newCount !== null) state.views = newCount;
+        localStorage.setItem(STORAGE_KEYS.visited, Date.now().toString());
+      } else {
+        // Repeat visit: only fetch current count without incrementing
+        const currentCount = await callCounterApi(COUNTER_CONFIG.viewsCounter, 'get');
+        if (currentCount !== null) state.views = currentCount;
+      }
+    } catch (err) {
+      // Graceful offline fallback
+      if (!alreadyVisited) {
+        state.views += 1;
+        localStorage.setItem(STORAGE_KEYS.visited, Date.now().toString());
+      }
+    }
+
+    localStorage.setItem(STORAGE_KEYS.cachedViews, state.views.toString());
+    renderStats();
+  };
+
+  // 2. Process APK Download Click with deduplication
+  const handleDownloadClick = async () => {
+    if (isLocal) {
+      try {
+        const res = await fetch('/api/metrics/download', { method: 'POST', keepalive: true });
+        if (res.ok) {
+          const data = await res.json();
+          if (typeof data.downloads === 'number') state.downloads = data.downloads;
+          renderStats();
+          return;
+        }
+      } catch (_) {}
+    }
+
+    const alreadyDownloaded = localStorage.getItem(STORAGE_KEYS.downloaded);
+    try {
+      if (!alreadyDownloaded) {
+        const newCount = await callCounterApi(COUNTER_CONFIG.downloadsCounter, 'up');
+        if (newCount !== null) state.downloads = newCount;
+        localStorage.setItem(STORAGE_KEYS.downloaded, Date.now().toString());
+      } else {
+        const currentCount = await callCounterApi(COUNTER_CONFIG.downloadsCounter, 'get');
+        if (currentCount !== null) state.downloads = currentCount;
+      }
+    } catch (err) {
+      if (!alreadyDownloaded) {
+        state.downloads += 1;
+        localStorage.setItem(STORAGE_KEYS.downloaded, Date.now().toString());
+      }
+    }
+
+    localStorage.setItem(STORAGE_KEYS.cachedDownloads, state.downloads.toString());
+    renderStats();
+  };
+
+  // Initialize view tracking
+  handlePageView();
+
+  // Load current download count on initial page load
+  (async () => {
+    if (!isLocal) {
+      try {
+        const currentDownloads = await callCounterApi(COUNTER_CONFIG.downloadsCounter, 'get');
+        if (currentDownloads !== null) {
+          state.downloads = currentDownloads;
+          localStorage.setItem(STORAGE_KEYS.cachedDownloads, state.downloads.toString());
+          renderStats();
+        }
+      } catch (_) {}
+    }
+  })();
+
+  // Attach download tracking to all APK links
+  const apkDownloadLinks = document.querySelectorAll('a[href*=".apk"], a[download*=".apk"]');
+  apkDownloadLinks.forEach(link => {
+    link.addEventListener('click', () => {
+      handleDownloadClick();
+    });
+  });
 }
