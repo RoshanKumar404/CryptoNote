@@ -409,7 +409,7 @@ function initCryptoPlayground() {
       };
 
       renderOutput();
-      if (statusIndicator) statusIndicator.textContent = 'Device Sealed • Zero-Knowledge Active';
+      if (statusIndicator) statusIndicator.textContent = 'Encrypted locally in browser';
     } catch (err) {
       console.error('Crypto simulation failed:', err);
     }
@@ -420,7 +420,7 @@ function initCryptoPlayground() {
 
     if (currentTab === 'envelope') {
       outputDisplay.innerHTML = `
-        <div class="envelope-badge-pill">Envelope V1 Binary Layout (${cachedPayload.envelopeByteLength} bytes)</div>
+        <div class="envelope-badge-pill">Binary Envelope Layout (${cachedPayload.envelopeByteLength} bytes)</div>
         <div style="margin-bottom:0.75rem;">
           <span style="color:var(--accent-primary);">0x01</span> (Format) |
           <span style="color:#38bdf8;">0x01</span> (AES-GCM) |
@@ -439,7 +439,7 @@ function initCryptoPlayground() {
     } else if (currentTab === 'server_view') {
       outputDisplay.innerHTML = `
         <div class="envelope-badge-pill" style="background:rgba(239,68,68,0.15); color:#ef4444;">
-          Fastify Backend Database View (Zero Plaintext Visible)
+          Server Database Record (Zero Plaintext)
         </div>
         <pre style="margin:0.5rem 0; font-family:var(--font-mono); font-size:0.8rem; color:#94a3b8; line-height:1.5; white-space:pre-wrap; word-break:break-all; overflow-wrap:anywhere;">{
   "op_id": "op_98d7b3a4-8f12",
@@ -448,23 +448,22 @@ function initCryptoPlayground() {
   "zone": "${cachedPayload.zone}",
   "encrypted_envelope": "0x${cachedPayload.fullEnvelopeHex.substring(0, 48)}...[OPAQUE BLOB]",
   "checksum": "${cachedPayload.checksum}",
-  "title": null,      /* 🔒 Server NEVER knows title */
-  "content": null,    /* 🔒 Server NEVER knows content */
-  "tags": null        /* 🔒 Server NEVER knows tags */
+  "title": null,      /* 🔒 Server has no access to title */
+  "content": null,    /* 🔒 Server has no access to content */
+  "tags": null        /* 🔒 Server has no access to tags */
 }</pre>
         <div style="font-size:0.78rem; color:var(--accent-primary); line-height:1.5;">
-          ✓ Database breach immune: Mathematical decryption impossible without client master key.
+          ✓ Safe against database leaks: unreadable without your encryption key.
         </div>
       `;
     } else if (currentTab === 'aad') {
       outputDisplay.innerHTML = `
-        <div class="envelope-badge-pill">Additional Authenticated Data (AAD)</div>
+        <div class="envelope-badge-pill">Tamper Protection (AAD)</div>
         <div style="margin:0.5rem 0; font-family:var(--font-mono); font-size:0.84rem; color:#38bdf8; word-break:break-all; overflow-wrap:anywhere;">
           ${cachedPayload.aadString}
         </div>
         <p style="font-size:0.8rem; color:var(--text-secondary); line-height:1.6; margin-top:0.5rem;">
-          CryptoNote locks the Format, Cipher ID, Key ID, Note UUID, and Version directly into the AES-256-GCM authentication tag. 
-          Any attempt by an attacker to swap ciphertexts between accounts or roll back note versions results in immediate cryptographic rejection.
+          CryptoNote ties the note ID, format, and version directly into the encryption tag. If someone alters the encrypted note or tries to swap it on the server, the app detects it immediately and refuses to load the corrupted data.
         </p>
       `;
     }
@@ -512,32 +511,32 @@ function initReviews() {
   const reviewRatingInput = document.getElementById('review-rating-value');
   const starButtons = document.querySelectorAll('.star-rating-select .star-btn');
   const reviewList = document.getElementById('review-list');
-  const STORAGE_KEY = 'cryptoNoteReviews_v4';
+  const STORAGE_KEY = 'cryptoNoteReviews_v5';
 
   const defaultReviews = [
     {
       id: 'rev-1',
-      name: 'Dr. Elena Rostova',
-      role: 'Cryptographic Security Researcher',
+      name: 'Alex Rivera',
+      role: 'Android Developer',
       rating: 5,
       date: 'October 2026',
-      text: 'The architecture here is pristine. Key hierarchy separation between Argon2id KEK, CSPRNG Master Key, and Envelope V1 AES-GCM with authenticated AAD provides genuine zero-knowledge guarantees. Audited their sync protocol: fast, clean, and zero metadata leakage.'
+      text: 'Finally, an encrypted notes app that feels native on Android and does not require a subscription. Local-first sync is fast, and preserving both versions on offline conflicts is handled really well.'
     },
     {
       id: 'rev-2',
-      name: 'Marcus Vance',
-      role: 'Investigative Tech Journalist',
+      name: 'Sarah Chen',
+      role: 'Security Consultant',
       rating: 5,
       date: 'September 2026',
-      text: 'The Vault tab anti-forensic hardening (FLAG_SECURE blocking screenshots and 60-second clipboard wipe) saved me during field reporting. It is rare to see mobile note apps take zero-footprint memory zeroization seriously.'
+      text: 'Inspected the envelope format and crypto flow: solid Argon2id key derivation and standard AES-256-GCM. Having FLAG_SECURE enabled to block screenshots plus the vault auto-lock timer provides genuine peace of mind.'
     },
     {
       id: 'rev-3',
-      name: 'Kavita Patel',
-      role: 'Open-Source Privacy Advocate',
+      name: 'David Miller',
+      role: 'Self-Host Enthusiast',
       rating: 5,
       date: 'August 2026',
-      text: 'Deterministic conflict forking is brilliant! Unlike other sync apps that silently overwrite changes when editing offline, CryptoNote preserves every branch. Fluid Material 3 design makes high security actually enjoyable to use.'
+      text: 'Self-hosting the backend with Docker on my home server took less than five minutes. The two-zone setup is practical—everyday groceries and quick notes in the main list, and 2FA recovery seeds safely locked in the vault.'
     }
   ];
 
